@@ -1,0 +1,21 @@
+[package]
+name = "simple_comics_viewer"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+gdk-pixbuf-sys = "0.16.3"
+
+[dependencies.gtk]
+version = "0.16.0"
+
+[dependencies.gio]
+version = "0.16.0"
+
+[dependencies.glib]
+version = "0.16.1"
+
+[dependencies.gdk-pixbuf]
+version = "0.16.7"
