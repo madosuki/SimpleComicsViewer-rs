@@ -1,6 +1,6 @@
 use std::fs::File;
 use std::io::Read;
-use std::cell::RefCell;
+use std::cell::Cell;
 
 use gtk::prelude::{GtkWindowExt, WidgetExt, ContainerExt, MenuShellExt, GtkMenuItemExt, ImageExt, DialogExt, FileChooserExt, FileChooserExtManual};
 use gtk::{Application, ApplicationWindow, Button, WindowPosition};
@@ -17,29 +17,34 @@ struct FileMenu {
     file_history: gtk::MenuItem,
 }
 
-
-fn create_pixbuf_from_file(path_str: String) -> Option<gdk_pixbuf::Pixbuf> {
-    let path = Some(std::path::Path::new(path_str.as_str())).unwrap();
+fn read_bytes_from_file(path_str: &str) -> Option<Vec<u8>> {
+    let path = Some(std::path::Path::new(path_str)).unwrap();
     let mut f = File::open(path).unwrap();
     let mut buf: Vec<u8> = vec!();
-    let result_of_read = f.read_to_end(&mut buf);
-    if result_of_read.is_err() {
-        return None
+    match f.read_to_end(&mut buf) {
+        Ok(_) => Some(buf),
+        _ => None,
     }
-    
-    let pixbuf_loader = gdk_pixbuf::PixbufLoader::new();
-    let result_of_write = pixbuf_loader.write(&buf);
-    if result_of_write.is_err() {
-        return None
-    }
-    
-    let pixbuf_data = pixbuf_loader.pixbuf().unwrap();
-    let result_of_close = pixbuf_loader.close();
-    if result_of_close.is_err() {
-        return None
-    }
+}
 
-    Some(pixbuf_data)
+
+fn create_pixbuf_from_file(path_str: String) -> Option<gdk_pixbuf::Pixbuf> {
+    if let Some(buf) = read_bytes_from_file(&path_str) {
+        let pixbuf_loader = gdk_pixbuf::PixbufLoader::new();
+        if let Ok(v) = pixbuf_loader.write(&buf) {
+            match pixbuf_loader.pixbuf() {
+                None => None,
+                Some(v) => {
+                    let result_of_loader_close = pixbuf_loader.close();
+                    if result_of_loader_close.is_err() {
+                        return None
+                    }
+                    Some(v)
+                }
+            }
+        }
+    }
+    
 }
 
 fn set_image_from_pixbuf(_image: &gtk::Image, _pixbuf_data: &gdk_pixbuf::Pixbuf) {
@@ -70,7 +75,7 @@ impl MainWindow {
             window: ApplicationWindow::new(app),
             v_box: gtk::Box::new(gtk::Orientation::Vertical, 1),
             image: gtk::Image::new(),
-            image_container: ImageConatainer { gtk_image: gtk::Image::new() },
+            image_container: ImageConatainer::default(),
             // menu_bar: gtk::MenuBar::new(),
             // file_menu: gtk::MenuItem::with_label("File"),
         }
@@ -86,7 +91,7 @@ impl MainWindow {
         let _self = &self;
         
         window.connect_size_allocate(|_win, _rec| {
-            println!("x: {}, y: {}\nwidth: {}, height: {}", _rec.x(), _rec.y(), _rec.width(), _rec.height());
+            // println!("x: {}, y: {}\nwidth: {}, height: {}", _rec.x(), _rec.y(), _rec.width(), _rec.height());
         });
 
         let menu_bar = gtk::MenuBar::new();
@@ -116,7 +121,8 @@ impl MainWindow {
 
                         let pixbuf_data = create_pixbuf_from_file(filename_unwraped.display().to_string());
                         if pixbuf_data.is_some() {
-                            println!("nyan!");
+                            // let pixbuf_data_unwraped = pixbuf_data.unwrap();
+                            // _image_container.src_pixbuf = Some(pixbuf_data_unwraped);
                             set_image_from_pixbuf(&_image_container.gtk_image, &pixbuf_data.unwrap());
                             // set_image_from_pixbuf(&_image, &pixbuf_data.unwrap());
                             // set_image_from_pixbuf(&_self.image, &pixbuf_data.unwrap());
@@ -153,6 +159,6 @@ impl MainWindow {
 
 pub fn activate(app: &Application) {
     let main = MainWindow::new(app);
-    main.init(640, 480);
+    main.init(1024, 768);
     main.run();
 }
