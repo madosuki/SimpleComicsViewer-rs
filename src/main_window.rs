@@ -29,24 +29,24 @@ fn read_bytes_from_file(path_str: &str) -> Option<Vec<u8>> {
 
 
 fn create_pixbuf_from_file(path_str: String) -> Option<gdk_pixbuf::Pixbuf> {
-    if let Some(buf) = read_bytes_from_file(&path_str) {
-        let pixbuf_loader = gdk_pixbuf::PixbufLoader::new();
-        if let Ok(v) = pixbuf_loader.write(&buf) {
-            match pixbuf_loader.pixbuf() {
-                Some(v) => {
-                    let result_of_loader_close = pixbuf_loader.close();
-                    if result_of_loader_close.is_err() {
-                        return None;
-                    }
+    let Some(buf) = read_bytes_from_file(&path_str) else {
+        return None
+    };
 
-                    return Some(v);
-                },
-                None => return None,
-            }
-        }
+    let pixbuf_loader = gdk_pixbuf::PixbufLoader::new();
+    let result_of_pixbuf_loader_write = pixbuf_loader.write(&buf);
+    if result_of_pixbuf_loader_write.is_err() { return None };
+
+    let Some(pixbuf_data) = pixbuf_loader.pixbuf() else {
+        return None
+    };
+
+    let result_of_loader_close = pixbuf_loader.close();
+    if result_of_loader_close.is_err() {
+        return None;
     }
-
-    None
+                
+    Some(pixbuf_data)
 }
 
 fn set_image_from_pixbuf(_image: &gtk::Image, _pixbuf_data: &gdk_pixbuf::Pixbuf) {
