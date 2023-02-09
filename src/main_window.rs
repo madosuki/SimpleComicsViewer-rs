@@ -33,18 +33,20 @@ fn create_pixbuf_from_file(path_str: String) -> Option<gdk_pixbuf::Pixbuf> {
         let pixbuf_loader = gdk_pixbuf::PixbufLoader::new();
         if let Ok(v) = pixbuf_loader.write(&buf) {
             match pixbuf_loader.pixbuf() {
-                None => None,
                 Some(v) => {
                     let result_of_loader_close = pixbuf_loader.close();
                     if result_of_loader_close.is_err() {
-                        return None
+                        return None;
                     }
-                    Some(v)
-                }
+
+                    return Some(v);
+                },
+                None => return None,
             }
         }
     }
-    
+
+    None
 }
 
 fn set_image_from_pixbuf(_image: &gtk::Image, _pixbuf_data: &gdk_pixbuf::Pixbuf) {
