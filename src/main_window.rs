@@ -1,5 +1,6 @@
 use std::fs::File;
 use std::io::Read;
+use std::cell::RefCell;
 
 use gtk::prelude::{GtkWindowExt, WidgetExt, ContainerExt, MenuShellExt, GtkMenuItemExt, ImageExt, DialogExt, FileChooserExt, FileChooserExtManual};
 use gtk::{Application, ApplicationWindow, Button, WindowPosition};
@@ -16,13 +17,6 @@ struct FileMenu {
     file_history: gtk::MenuItem,
 }
 
-struct MainWindow {
-    window: ApplicationWindow,
-    v_box: gtk::Box,
-    image: gtk::Image,
-    // menu_bar: gtk::MenuBar,
-    // file_menu: gtk::MenuItem,
-}
 
 fn create_pixbuf_from_file(path_str: String) -> Option<gdk_pixbuf::Pixbuf> {
     let path = Some(std::path::Path::new(path_str.as_str())).unwrap();
@@ -53,12 +47,30 @@ fn set_image_from_pixbuf(_image: &gtk::Image, _pixbuf_data: &gdk_pixbuf::Pixbuf)
     _image.set_vexpand(true);
 }
 
+#[derive(Default, Clone)]
+struct ImageConatainer {
+    gtk_image: gtk::Image,
+    // src_pixbuf: Option<gdk_pixbuf::Pixbuf>,
+    // dst_pixbuf: Option<gdk_pixbuf::Pixbuf>,
+}
+
+struct MainWindow {
+    window: ApplicationWindow,
+    v_box: gtk::Box,
+    image: gtk::Image,
+    image_container: ImageConatainer
+    // menu_bar: gtk::MenuBar,
+    // file_menu: gtk::MenuItem,
+}
+
+
 impl MainWindow {
     fn new(app: &Application) -> MainWindow {
         MainWindow {
             window: ApplicationWindow::new(app),
             v_box: gtk::Box::new(gtk::Orientation::Vertical, 1),
             image: gtk::Image::new(),
+            image_container: ImageConatainer { gtk_image: gtk::Image::new() },
             // menu_bar: gtk::MenuBar::new(),
             // file_menu: gtk::MenuItem::with_label("File"),
         }
@@ -67,12 +79,15 @@ impl MainWindow {
     fn init(&self, width: i32, height: i32) {
         self.window.set_title("Simple Comics Viewer");
         self.window.set_default_size(width, height);
-        let window = &self.window;
 
-        // self.menu_bar.append(&self.file_menu);
-        // self.v_box.add(&self.menu_bar);
-
+        let _image_container = &self.image_container;
         let _image = &self.image;
+        let window = &self.window;
+        let _self = &self;
+        
+        window.connect_size_allocate(|_win, _rec| {
+            println!("x: {}, y: {}\nwidth: {}, height: {}", _rec.x(), _rec.y(), _rec.width(), _rec.height());
+        });
 
         let menu_bar = gtk::MenuBar::new();
         let file_menu = FileMenu {
@@ -83,23 +98,28 @@ impl MainWindow {
             file_history: gtk::MenuItem::with_label("File History"),
         };
         file_menu.body.add(&file_menu.load);
-        file_menu.load.connect_activate(glib::clone!(@weak window, @strong _image => move |_| {
+        file_menu.load.connect_activate(glib::clone!(@weak window, @strong _image_container, @strong _image => move |_| {
             let dialog = gtk::FileChooserDialog::new(Some("File Select"), Some(&window), gtk::FileChooserAction::Open);
 
             dialog.add_button("Open", gtk::ResponseType::Ok);
             dialog.add_button("Cancel", gtk::ResponseType::Cancel);
 
-            dialog.connect_response(glib::clone!(@strong _image => move |file_dialog, response| {
+            // let img_ptr = &_image_container.gtk_image;
+
+            dialog.connect_response(glib::clone!(@strong _image, @strong _image_container => move|file_dialog, response| {
                 if response == gtk::ResponseType::Ok {
                     println!("ok");
                     let filename = file_dialog.filename();
                     if filename.is_some() {
-                        let fname = filename.unwrap();
-                        println!("{}", fname.display());
+                        let filename_unwraped = filename.unwrap();
+                        println!("{}", filename_unwraped.display());
 
-                        let pixbuf_data = create_pixbuf_from_file(fname.display().to_string());
+                        let pixbuf_data = create_pixbuf_from_file(filename_unwraped.display().to_string());
                         if pixbuf_data.is_some() {
-                            set_image_from_pixbuf(&_image, &pixbuf_data.unwrap());
+                            println!("nyan!");
+                            set_image_from_pixbuf(&_image_container.gtk_image, &pixbuf_data.unwrap());
+                            // set_image_from_pixbuf(&_image, &pixbuf_data.unwrap());
+                            // set_image_from_pixbuf(&_self.image, &pixbuf_data.unwrap());
                         }
                     }
                 }
@@ -118,7 +138,7 @@ impl MainWindow {
         menu_bar.append(&file_menu.root);
         self.v_box.add(&menu_bar);
 
-        let _scroll = gtk::ScrolledWindow::builder().child(&self.image).build();
+        let _scroll = gtk::ScrolledWindow::builder().child(&self.image_container.gtk_image).build();
         self.v_box.add(&_scroll);
 
        
@@ -133,6 +153,6 @@ impl MainWindow {
 
 pub fn activate(app: &Application) {
     let main = MainWindow::new(app);
-    main.init(1024, 768);
+    main.init(640, 480);
     main.run();
 }
