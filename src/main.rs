@@ -1,4 +1,5 @@
 mod main_window;
+mod image_loader;
 
 use gtk::Application;
 use gio::prelude::{ApplicationExt, ApplicationExtManual};

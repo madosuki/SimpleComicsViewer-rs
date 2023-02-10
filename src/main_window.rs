@@ -1,12 +1,10 @@
-use std::fs::File;
-use std::io::Read;
-use std::cell::Cell;
-
 use gtk::prelude::{GtkWindowExt, WidgetExt, ContainerExt, MenuShellExt, GtkMenuItemExt, ImageExt, DialogExt, FileChooserExt, FileChooserExtManual};
 use gtk::{Application, ApplicationWindow, Button, WindowPosition};
 use glib;
 use gdk_pixbuf;
 use gdk_pixbuf::prelude::PixbufLoaderExt;
+
+use crate::image_loader;
 
 
 struct FileMenu {
@@ -15,43 +13,6 @@ struct FileMenu {
     load: gtk::MenuItem,
     quit: gtk::MenuItem,
     file_history: gtk::MenuItem,
-}
-
-fn read_bytes_from_file(path_str: &str) -> Option<Vec<u8>> {
-    let path = Some(std::path::Path::new(path_str)).unwrap();
-    let mut f = File::open(path).unwrap();
-    let mut buf: Vec<u8> = vec!();
-    match f.read_to_end(&mut buf) {
-        Ok(_) => Some(buf),
-        _ => None,
-    }
-}
-
-
-fn create_pixbuf_from_file(path_str: String) -> Option<gdk_pixbuf::Pixbuf> {
-    let Some(buf) = read_bytes_from_file(&path_str) else {
-        return None
-    };
-
-    let pixbuf_loader = gdk_pixbuf::PixbufLoader::new();
-    let result_of_pixbuf_loader_write = pixbuf_loader.write(&buf);
-    if result_of_pixbuf_loader_write.is_err() { return None };
-
-    let Some(pixbuf_data) = pixbuf_loader.pixbuf() else {
-        return None
-    };
-
-    let result_of_loader_close = pixbuf_loader.close();
-    if result_of_loader_close.is_err() {
-        return None;
-    }
-                
-    Some(pixbuf_data)
-}
-
-fn set_image_from_pixbuf(_image: &gtk::Image, _pixbuf_data: &gdk_pixbuf::Pixbuf) {
-    _image.set_from_pixbuf(Some(_pixbuf_data));
-    _image.set_vexpand(true);
 }
 
 #[derive(Default, Clone)]
@@ -121,11 +82,11 @@ impl MainWindow {
                         let filename_unwraped = filename.unwrap();
                         println!("{}", filename_unwraped.display());
 
-                        let pixbuf_data = create_pixbuf_from_file(filename_unwraped.display().to_string());
+                        let pixbuf_data = image_loader::create_pixbuf_from_file(filename_unwraped.display().to_string());
                         if pixbuf_data.is_some() {
                             // let pixbuf_data_unwraped = pixbuf_data.unwrap();
                             // _image_container.src_pixbuf = Some(pixbuf_data_unwraped);
-                            set_image_from_pixbuf(&_image_container.gtk_image, &pixbuf_data.unwrap());
+                            image_loader::set_image_from_pixbuf(&_image_container.gtk_image, &pixbuf_data.unwrap());
                             // set_image_from_pixbuf(&_image, &pixbuf_data.unwrap());
                             // set_image_from_pixbuf(&_self.image, &pixbuf_data.unwrap());
                         }
