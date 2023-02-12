@@ -1,9 +1,54 @@
 use std::fs::File;
 use std::io::Read;
+use std::cell::Cell;
 
 use gtk::prelude::{WidgetExt, ImageExt};
 use gdk_pixbuf;
 use gdk_pixbuf::prelude::PixbufLoaderExt;
+
+#[derive(Default, Clone)]
+pub struct ImageContainer {
+    gtk_image: gtk::Image,
+    // bytes: Vec<u8>,
+    orig_width: Cell<i32>,
+    orig_height: Cell<i32>,
+    // width: i32,
+    // height: i32,
+    // src_pixbuf: Cell<gdk_pixbuf::Pixbuf>,
+    // dst_pixbuf: Option<gdk_pixbuf::Pixbuf>,
+}
+
+pub trait ImageContainerEx {
+    fn set_image_from_file(&self, path_str: &str);
+    fn update_size_info(&self, width: i32, height: i32);
+    fn get_image_ptr(&self) -> &gtk::Image;
+    fn get_orig_width(&self) -> i32;
+    fn get_orig_height(&self) -> i32;
+}
+
+impl ImageContainerEx for ImageContainer {
+    fn set_image_from_file(&self, path_str: &str) {
+        let Some(pixbuf_data) = create_pixbuf_from_file(path_str.to_string()) else { return };
+        set_image_from_pixbuf(&self.gtk_image, &pixbuf_data);
+    }
+
+    fn update_size_info(&self, width: i32, height: i32) {
+        self.orig_width.set(width);
+        self.orig_height.set(height);
+    }
+
+    fn get_image_ptr(&self) -> &gtk::Image {
+        &self.gtk_image
+    }
+
+    fn get_orig_width(&self) -> i32 {
+        self.orig_width.get()
+    }
+
+    fn get_orig_height(&self) -> i32 {
+        self.orig_height.get()
+    }
+}
 
 pub fn read_bytes_from_file(path_str: &str) -> Option<Vec<u8>> {
     let path = Some(std::path::Path::new(path_str)).unwrap();

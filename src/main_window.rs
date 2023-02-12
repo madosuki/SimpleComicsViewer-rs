@@ -5,6 +5,7 @@ use gdk_pixbuf;
 use gdk_pixbuf::prelude::PixbufLoaderExt;
 
 use crate::image_loader;
+use image_loader::{ImageContainer, ImageContainerEx};
 
 
 struct FileMenu {
@@ -15,30 +16,20 @@ struct FileMenu {
     file_history: gtk::MenuItem,
 }
 
-#[derive(Default, Clone)]
-struct ImageConatainer {
-    gtk_image: gtk::Image,
-    // src_pixbuf: Option<gdk_pixbuf::Pixbuf>,
-    // dst_pixbuf: Option<gdk_pixbuf::Pixbuf>,
-}
-
 struct MainWindow {
     window: ApplicationWindow,
     v_box: gtk::Box,
-    image: gtk::Image,
-    image_container: ImageConatainer
+    image_container: ImageContainer
     // menu_bar: gtk::MenuBar,
     // file_menu: gtk::MenuItem,
 }
-
 
 impl MainWindow {
     fn new(app: &Application) -> MainWindow {
         MainWindow {
             window: ApplicationWindow::new(app),
             v_box: gtk::Box::new(gtk::Orientation::Vertical, 1),
-            image: gtk::Image::new(),
-            image_container: ImageConatainer::default(),
+            image_container: ImageContainer::default(),
             // menu_bar: gtk::MenuBar::new(),
             // file_menu: gtk::MenuItem::with_label("File"),
         }
@@ -49,13 +40,13 @@ impl MainWindow {
         self.window.set_default_size(width, height);
 
         let _image_container = &self.image_container;
-        let _image = &self.image;
         let window = &self.window;
-        let _self = &self;
         
-        window.connect_size_allocate(|_win, _rec| {
-            // println!("x: {}, y: {}\nwidth: {}, height: {}", _rec.x(), _rec.y(), _rec.width(), _rec.height());
-        });
+        window.connect_size_allocate(glib::clone!(@strong _image_container => move |_win, _rec| {
+            println!("x: {}, y: {}\nwidth: {}, height: {}", _rec.x(), _rec.y(), _rec.width(), _rec.height());
+            println!("{}",_image_container.get_image_ptr().pixel_size());
+            println!("{}, {}", _image_container.get_orig_width(), _image_container.get_orig_height());
+        }));
 
         let menu_bar = gtk::MenuBar::new();
         let file_menu = FileMenu {
@@ -66,15 +57,13 @@ impl MainWindow {
             file_history: gtk::MenuItem::with_label("File History"),
         };
         file_menu.body.add(&file_menu.load);
-        file_menu.load.connect_activate(glib::clone!(@weak window, @strong _image_container, @strong _image => move |_| {
+        file_menu.load.connect_activate(glib::clone!(@weak window, @strong _image_container => move |_| {
             let dialog = gtk::FileChooserDialog::new(Some("File Select"), Some(&window), gtk::FileChooserAction::Open);
 
             dialog.add_button("Open", gtk::ResponseType::Ok);
             dialog.add_button("Cancel", gtk::ResponseType::Cancel);
 
-            // let img_ptr = &_image_container.gtk_image;
-
-            dialog.connect_response(glib::clone!(@strong _image, @strong _image_container => move|file_dialog, response| {
+            dialog.connect_response(glib::clone!(@strong _image_container => move|file_dialog, response| {
                 if response == gtk::ResponseType::Ok {
                     println!("ok");
                     let filename = file_dialog.filename();
@@ -82,14 +71,8 @@ impl MainWindow {
                         let filename_unwraped = filename.unwrap();
                         println!("{}", filename_unwraped.display());
 
-                        let pixbuf_data = image_loader::create_pixbuf_from_file(filename_unwraped.display().to_string());
-                        if pixbuf_data.is_some() {
-                            // let pixbuf_data_unwraped = pixbuf_data.unwrap();
-                            // _image_container.src_pixbuf = Some(pixbuf_data_unwraped);
-                            image_loader::set_image_from_pixbuf(&_image_container.gtk_image, &pixbuf_data.unwrap());
-                            // set_image_from_pixbuf(&_image, &pixbuf_data.unwrap());
-                            // set_image_from_pixbuf(&_self.image, &pixbuf_data.unwrap());
-                        }
+                        _image_container.set_image_from_file(&filename_unwraped.display().to_string());
+                        _image_container.update_size_info(140, 11);
                     }
                 }
                 file_dialog.close();
@@ -107,7 +90,7 @@ impl MainWindow {
         menu_bar.append(&file_menu.root);
         self.v_box.add(&menu_bar);
 
-        let _scroll = gtk::ScrolledWindow::builder().child(&self.image_container.gtk_image).build();
+        let _scroll = gtk::ScrolledWindow::builder().child(self.image_container.get_image_ptr()).build();
         self.v_box.add(&_scroll);
 
        
@@ -124,4 +107,5 @@ pub fn activate(app: &Application) {
     let main = MainWindow::new(app);
     main.init(1024, 768);
     main.run();
+
 }
