@@ -16,20 +16,28 @@ struct FileMenu {
     file_history: gtk::MenuItem,
 }
 
+#[derive(Default)]
+struct A {
+    a: i32,
+}
+
+
 struct MainWindow {
     window: ApplicationWindow,
     v_box: gtk::Box,
-    image_container: ImageContainer
+    image_container: std::rc::Rc<ImageContainer>,
     // menu_bar: gtk::MenuBar,
     // file_menu: gtk::MenuItem,
 }
 
 impl MainWindow {
     fn new(app: &Application) -> MainWindow {
+        let _image_container = ImageContainer::default();
+        
         MainWindow {
             window: ApplicationWindow::new(app),
             v_box: gtk::Box::new(gtk::Orientation::Vertical, 1),
-            image_container: ImageContainer::default(),
+            image_container: std::rc::Rc::new(_image_container),
             // menu_bar: gtk::MenuBar::new(),
             // file_menu: gtk::MenuItem::with_label("File"),
         }
@@ -39,13 +47,12 @@ impl MainWindow {
         self.window.set_title("Simple Comics Viewer");
         self.window.set_default_size(width, height);
 
-        let _image_container = &self.image_container;
         let window = &self.window;
-        
+        let _image_container = &self.image_container;
+
         window.connect_size_allocate(glib::clone!(@strong _image_container => move |_win, _rec| {
             println!("x: {}, y: {}\nwidth: {}, height: {}", _rec.x(), _rec.y(), _rec.width(), _rec.height());
-            println!("{}",_image_container.get_image_ptr().pixel_size());
-            println!("{}, {}", _image_container.get_orig_width(), _image_container.get_orig_height());
+            println!("orig width: {}, orig height: {}", _image_container.get_orig_width(), _image_container.get_orig_height());
         }));
 
         let menu_bar = gtk::MenuBar::new();
@@ -72,7 +79,7 @@ impl MainWindow {
                         println!("{}", filename_unwraped.display());
 
                         _image_container.set_image_from_file(&filename_unwraped.display().to_string());
-                        _image_container.update_size_info(140, 11);
+                        println!("width: {}, height: {}", _image_container.get_orig_width(), _image_container.get_orig_height());
                     }
                 }
                 file_dialog.close();
@@ -90,7 +97,7 @@ impl MainWindow {
         menu_bar.append(&file_menu.root);
         self.v_box.add(&menu_bar);
 
-        let _scroll = gtk::ScrolledWindow::builder().child(self.image_container.get_image_ptr()).build();
+        let _scroll = gtk::ScrolledWindow::builder().child(_image_container.get_image_ptr()).build();
         self.v_box.add(&_scroll);
 
        
