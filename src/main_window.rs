@@ -16,12 +16,6 @@ struct FileMenu {
     file_history: gtk::MenuItem,
 }
 
-#[derive(Default)]
-struct A {
-    a: i32,
-}
-
-
 struct MainWindow {
     window: ApplicationWindow,
     v_box: gtk::Box,
@@ -78,7 +72,8 @@ impl MainWindow {
                         let filename_unwraped = filename.unwrap();
                         println!("{}", filename_unwraped.display());
 
-                        _image_container.set_image_from_file(&filename_unwraped.display().to_string());
+                        _image_container.set_image_from_file(&filename_unwraped.display().to_string(), window.width_request(), window.height_request());
+                        _image_container.scale(1024, 768);
                         println!("width: {}, height: {}", _image_container.get_orig_width(), _image_container.get_orig_height());
                     }
                 }

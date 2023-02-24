@@ -6,6 +6,12 @@ use gtk::prelude::{WidgetExt, ImageExt};
 use gdk_pixbuf;
 use gdk_pixbuf::prelude::PixbufLoaderExt;
 
+enum PictureDirectionType {
+    Vertical,
+    Horizontal,
+    Square
+}
+
 #[derive(Default, Clone)]
 pub struct ImageContainer {
     gtk_image: gtk::Image,
@@ -13,21 +19,30 @@ pub struct ImageContainer {
     orig_height: Cell<i32>,
 }
 
+#[derive(Default)]
+pub struct AspectRatioCollection {
+    for_width: f64,
+    for_height: f64,
+}
+
 pub trait ImageContainerEx {
-    fn set_image_from_file(&self, path_str: &str);
+    fn set_image_from_file(&self, path_str: &str, window_width: i32, window_height: i32);
     fn update_size_info(&self, width: i32, height: i32);
     fn get_image_ptr(&self) -> &gtk::Image;
     fn get_orig_width(&self) -> i32;
     fn get_orig_height(&self) -> i32;
+    fn scale(&self, target_width: i32, target_height: i32);
 }
 
 impl ImageContainerEx for ImageContainer {
-    fn set_image_from_file(&self, path_str: &str) {
+    fn set_image_from_file(&self, path_str: &str, window_width: i32, window_height: i32) {
         let Some(pixbuf_data) = create_pixbuf_from_file(path_str.to_string()) else { return };
-        set_image_from_pixbuf(&self.gtk_image, &pixbuf_data);
-
         let width = pixbuf_data.width();
         let height = pixbuf_data.height();
+
+        
+        set_image_from_pixbuf(&self.gtk_image, &pixbuf_data);
+
         self.update_size_info(width, height);
     }
 
@@ -46,6 +61,47 @@ impl ImageContainerEx for ImageContainer {
 
     fn get_orig_height(&self) -> i32 {
         self.orig_height.get()
+    }
+
+    fn scale(&self, target_width: i32, target_height: i32) {
+        let Some(pixbuf_data) = self.gtk_image.pixbuf() else { return };
+
+        let width = pixbuf_data.width() as f64;
+        let height = pixbuf_data.height() as f64;
+
+        let mut picture_direction: PictureDirectionType = PictureDirectionType::Square;
+        if width < height {
+            picture_direction = PictureDirectionType::Vertical;
+        }
+        if height < width {
+            picture_direction = PictureDirectionType::Horizontal;
+        }
+
+        let tmp_target_width = target_width as f64;
+        let tmp_target_height = target_height as f64;
+
+        let aspect_ratio = calc_aspect_raito(width, height);
+        let mut result_height: i32 = 0;
+        let mut result_width: i32 = 0;
+
+        match picture_direction {
+            PictureDirectionType::Vertical => {
+                result_height = target_height;
+                result_width = (tmp_target_height / aspect_ratio.for_height).ceil() as i32;
+                println!("scaled! {}, {}", result_width, result_height);
+            },
+            PictureDirectionType::Horizontal => {
+                result_width = target_width;
+                result_height = (tmp_target_width / aspect_ratio.for_width).ceil() as i32;
+            },
+            PictureDirectionType::Square => {
+                result_height = target_height;
+                result_width = (tmp_target_height / aspect_ratio.for_height).ceil() as i32;
+            }
+        }
+
+        let Some(scaled) = pixbuf_data.scale_simple(result_width, result_height, gdk_pixbuf::InterpType::Bilinear) else { return };
+        self.gtk_image.set_pixbuf(Some(&scaled));
     }
 }
 
@@ -101,3 +157,12 @@ pub fn set_image_from_pixbuf(_image: &gtk::Image, _pixbuf_data: &gdk_pixbuf::Pix
     _image.set_vexpand(true);
 }
 
+fn calc_aspect_raito(width: f64, height: f64) -> AspectRatioCollection {
+    let for_width: f64 = width / height;
+    let for_height: f64 = height / width;
+
+    AspectRatioCollection {
+        for_width: for_width,
+        for_height: for_height,
+    }
+}
