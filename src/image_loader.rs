@@ -1,6 +1,7 @@
 use std::fs::File;
 use std::io::Read;
 use std::cell::Cell;
+use std::cell::RefCell;
 
 use gtk::prelude::{WidgetExt, ImageExt};
 use gdk_pixbuf;
@@ -14,8 +15,8 @@ enum PictureDirectionType {
 
 #[derive(Default, Clone)]
 pub struct ImageContainer {
-    pixbuf_data_for_modify: std::cell::Cell<Option<gdk_pixbuf::Pixbuf>>,
-    orig_pixbuf_data: Option<gdk_pixbuf::Pixbuf>,
+    pixbuf_data_for_modify: RefCell<Option<gdk_pixbuf::Pixbuf>>,
+    orig_pixbuf_data: RefCell<Option<gdk_pixbuf::Pixbuf>>,
     orig_width: Cell<i32>,
     orig_height: Cell<i32>
 }
@@ -28,7 +29,7 @@ pub struct AspectRatioCollection {
 
 pub trait ImageContainerEx {
     fn set_pixbuf_from_file(&self, path_str: &str, window_width: i32, window_height: i32);
-    fn get_modified_pixbuf_data(&self) -> &Option<gdk_pixbuf::Pixbuf>;
+    fn get_modified_pixbuf_data(&self) -> Option<gdk_pixbuf::Pixbuf>;
     fn update_size_info(&self, width: i32, height: i32);
     fn get_orig_width(&self) -> i32;
     fn get_orig_height(&self) -> i32;
@@ -36,8 +37,12 @@ pub trait ImageContainerEx {
 }
 
 impl ImageContainerEx for ImageContainer {
-    fn get_modified_pixbuf_data(&self) -> &Option<gdk_pixbuf::Pixbuf> {
-        &self.pixbuf_data_for_modify
+    fn get_modified_pixbuf_data(&self) -> Option<gdk_pixbuf::Pixbuf> {
+        if let Some(v) = self.pixbuf_data_for_modify.take() {
+            return Some(v);
+        }
+
+        None
     }
     
     fn set_pixbuf_from_file(&self, path_str: &str, window_width: i32, window_height: i32) {
@@ -45,8 +50,9 @@ impl ImageContainerEx for ImageContainer {
         let width = pixbuf_data.width();
         let height = pixbuf_data.height();
 
-        self.pixbuf_data_for_modify.set(Some(pixbuf_data.clone()));
-        self.orig_pixbuf_data = Some(pixbuf_data);
+        let _ = self.pixbuf_data_for_modify.replace_with(|_| Some(pixbuf_data.clone()));
+
+        let _ = self.orig_pixbuf_data.replace_with(|_| Some(pixbuf_data.clone()));
 
         self.update_size_info(width, height);
     }
@@ -65,7 +71,7 @@ impl ImageContainerEx for ImageContainer {
     }
 
     fn scale(&self, target_width: i32, target_height: i32) {
-        let Some(pixbuf_data) = self.pixbuf_data_for_modify else { return };
+        let Some(pixbuf_data) = self.pixbuf_data_for_modify.take() else { return };
 
         let width = pixbuf_data.width() as f64;
         let height = pixbuf_data.height() as f64;
@@ -102,7 +108,7 @@ impl ImageContainerEx for ImageContainer {
         }
 
         let Some(scaled) = pixbuf_data.scale_simple(result_width, result_height, gdk_pixbuf::InterpType::Bilinear) else { return };
-        self.pixbuf_data_for_modify.set(Some(scaled));
+        let _ = self.pixbuf_data_for_modify.replace_with(|_| Some(scaled.clone()));
     }
 }
 
