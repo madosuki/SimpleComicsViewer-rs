@@ -35,11 +35,11 @@ pub trait ImageContainerEx {
 
 impl ImageContainerEx for ImageContainer {
     fn get_modified_pixbuf_data(&self) -> Option<gdk_pixbuf::Pixbuf> {
-        if let Some(v) = self.pixbuf_data_for_modify.take() {
-            return Some(v);
-        }
+        let Some(v) = self.pixbuf_data_for_modify.borrow().clone() else {
+            return None;
+        };
 
-        None
+        Some(v)
     }
     
     fn set_pixbuf_from_file(&self, path_str: &str, window_width: i32, window_height: i32) {
@@ -52,7 +52,8 @@ impl ImageContainerEx for ImageContainer {
     }
 
     fn get_orig_width(&self) -> i32 {
-        let Some(v) = self.orig_pixbuf_data.take() else {
+        let tmp = self.orig_pixbuf_data.borrow();
+        let Some(v) = tmp.as_ref() else {
             return -1;
         };
 
@@ -60,7 +61,8 @@ impl ImageContainerEx for ImageContainer {
     }
 
     fn get_orig_height(&self) -> i32 {
-        let Some(v) = self.orig_pixbuf_data.take() else {
+        let tmp = self.orig_pixbuf_data.borrow();
+        let Some(v) = tmp.as_ref() else {
             return -1;
         };
 
@@ -68,7 +70,7 @@ impl ImageContainerEx for ImageContainer {
     }
 
     fn scale(&self, target_width: i32, target_height: i32) {
-        let Some(pixbuf_data) = self.pixbuf_data_for_modify.take() else { return };
+        let Some(pixbuf_data) = self.orig_pixbuf_data.borrow().clone() else { return };
 
         let width = pixbuf_data.width() as f64;
         let height = pixbuf_data.height() as f64;

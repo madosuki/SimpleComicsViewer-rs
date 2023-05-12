@@ -1,5 +1,5 @@
 use gtk::prelude::{GtkWindowExt, WidgetExt, ContainerExt, MenuShellExt, GtkMenuItemExt, ImageExt, DialogExt, FileChooserExt, FileChooserExtManual};
-use gtk::{Application, ApplicationWindow, Button, WindowPosition};
+use gtk::{Application, ApplicationWindow, Button, WindowPosition, Allocation};
 use glib;
 use gdk_pixbuf;
 use gdk_pixbuf::prelude::PixbufLoaderExt;
@@ -27,21 +27,56 @@ struct MainWindow {
     v_box: gtk::Box,
     pages: std::rc::Rc<PageContainer>,
     image_container_list: std::rc::Rc<std::cell::RefCell<Vec<ImageContainer>>>,
+    menubar_size: std::rc::Rc<std::cell::Cell<gtk::Rectangle>>,
     // menu_bar: gtk::MenuBar,
     // file_menu: gtk::MenuItem,
 }
 
-fn set_page_from_file(file_path: String, image_container_list: &std::rc::Rc<std::cell::RefCell<Vec<ImageContainer>>>, pages: &std::rc::Rc<PageContainer>, window: &ApplicationWindow) {
+fn scale_page(image_container_list: &std::rc::Rc<std::cell::RefCell<Vec<ImageContainer>>>, pages: &std::rc::Rc<PageContainer>, window: &ApplicationWindow, menubar_size: &std::rc::Rc<std::cell::Cell<gtk::Rectangle>>) {
+
+    if image_container_list.borrow().is_empty() {
+        return;
+    }
+    
+    let (width, height) = window.size();
+    println!("window size: {}, {}", &width, &height);
+
+    let final_height = std::cmp::max(height, menubar_size.get().height()) - std::cmp::min(height, menubar_size.get().height());
+    println!("final height: {}", final_height);
+    println!("menubar height: {}", menubar_size.get().height());
+
+    println!("image_container_list len on scale_page: {}", image_container_list.borrow().len());
+
+    image_container_list.borrow()[0].scale(width, final_height);
+
+    if let Some(v) = image_container_list.borrow()[0].get_modified_pixbuf_data() {
+        pages.left.clear();
+        println!("modified width and height: {}, {}", v.width(), v.height());
+        pages.left.set_from_pixbuf(Some(&v));
+    }
+}
+
+
+fn set_page_from_file(file_path: String, image_container_list: &std::rc::Rc<std::cell::RefCell<Vec<ImageContainer>>>, pages: &std::rc::Rc<PageContainer>, window: &ApplicationWindow, menubar_size: &std::rc::Rc<std::cell::Cell<gtk::Rectangle>>) {
     let _image_container = ImageContainer::default();
     image_container_list.borrow_mut().clear();
     image_container_list.borrow_mut().push(_image_container);
 
     image_container_list.borrow()[0].set_pixbuf_from_file(&file_path, window.width_request(), window.height_request());
-    image_container_list.borrow()[0].scale(1024, 768);
+    let (width, height) = window.size();
+    println!("window size: {}, {}", &width, &height);
+
+    let final_height = std::cmp::max(height, menubar_size.get().height()) - std::cmp::min(height, menubar_size.get().height());
+    println!("final height: {}", final_height);
+    println!("menubar height: {}", menubar_size.get().height());
+    
+    image_container_list.borrow()[0].scale(width, final_height);
+
     if let Some(v) = image_container_list.borrow()[0].get_modified_pixbuf_data() {
         pages.left.set_pixbuf(Some(&v));
     }
 }
+
 
 impl MainWindow {
     fn new(app: &Application) -> MainWindow {
@@ -53,6 +88,7 @@ impl MainWindow {
             v_box: gtk::Box::new(gtk::Orientation::Vertical, 1),
             pages: std::rc::Rc::new(PageContainer::default()),
             image_container_list: std::rc::Rc::new(std::cell::RefCell::new(vec!())),
+            menubar_size: std::rc::Rc::new(std::cell::Cell::new(gtk::Rectangle::new(0, 0, 0, 0))),
             // image_container: std::rc::Rc::new(_image_container),
             // menu_bar: gtk::MenuBar::new(),
             // file_menu: gtk::MenuItem::with_label("File"),
@@ -66,14 +102,19 @@ impl MainWindow {
         let window = &self.window;
         let _image_container_list = &self.image_container_list;
         let _pages = &self.pages;
+        let _menubar_size = &self.menubar_size;
 
 
-        // window.connect_size_allocate(glib::clone!(@strong _image_container => move |_win, _rec| {
-        //     println!("x: {}, y: {}\nwidth: {}, height: {}", _rec.x(), _rec.y(), _rec.width(), _rec.height());
-        //     println!("orig width: {}, orig height: {}", _image_container.get_orig_width(), _image_container.get_orig_height());
-        // }));
+        window.connect_size_allocate(glib::clone!(@weak window, @strong _image_container_list, @strong _menubar_size, @strong _pages  => move |_win, _rec| {
+            // println!("x: {}, y: {}\nwidth: {}, height: {}", _rec.x(), _rec.y(), _rec.width(), _rec.height());
+            // println!("orig width: {}, orig height: {}", _image_container.get_orig_width(), _image_container.get_orig_height());
+            scale_page(&_image_container_list, &_pages, &window, &_menubar_size);
+        }));
 
         let menu_bar = gtk::MenuBar::new();
+        menu_bar.connect_size_allocate(glib::clone!(@strong _menubar_size => move |_menubar, _rec| {
+            _menubar_size.replace(*_rec);
+        }));
         let file_menu = FileMenu {
             root: gtk::MenuItem::with_label("File"),
             body: gtk::Menu::new(),
@@ -82,13 +123,13 @@ impl MainWindow {
             file_history: gtk::MenuItem::with_label("File History"),
         };
         file_menu.body.add(&file_menu.load);
-        file_menu.load.connect_activate(glib::clone!(@weak window, @strong _pages, @strong _image_container_list => move |_| {
+        file_menu.load.connect_activate(glib::clone!(@weak window, @strong _pages, @strong _image_container_list, @strong _menubar_size => move |_| {
             let dialog = gtk::FileChooserDialog::new(Some("File Select"), Some(&window), gtk::FileChooserAction::Open);
 
             dialog.add_button("Open", gtk::ResponseType::Ok);
             dialog.add_button("Cancel", gtk::ResponseType::Cancel);
 
-            dialog.connect_response(glib::clone!(@strong _pages, @strong _image_container_list => move|file_dialog, response| {
+            dialog.connect_response(glib::clone!(@strong _pages, @strong _image_container_list, @strong _menubar_size => move|file_dialog, response| {
                 if response == gtk::ResponseType::Ok {
                     println!("ok");
                     let filename = file_dialog.filename();
@@ -96,7 +137,7 @@ impl MainWindow {
                         let filename_unwraped = filename.unwrap();
                         println!("{}", filename_unwraped.display());
 
-                        set_page_from_file(filename_unwraped.display().to_string(), &_image_container_list, &_pages, &window);
+                        set_page_from_file(filename_unwraped.display().to_string(), &_image_container_list, &_pages, &window, &_menubar_size);
     
                     }
                 }
