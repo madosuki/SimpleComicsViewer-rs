@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<interface>
+  <menu id="menu">
+    <submenu>
+      <attribute name="label" translatable="yes">File</attribute>
+      <section>
+        <item>
+          <attribute name="label" translatable="yes">Open</attribute>
+          <attribute name="action">app.file_open</attribute>
+        </item>
+      </section>
+    </submenu>
+  </menu>
+</interface>

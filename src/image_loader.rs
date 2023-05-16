@@ -3,7 +3,9 @@ use std::io::Read;
 use std::cell::Cell;
 use std::cell::RefCell;
 
-use gtk::prelude::{WidgetExt, ImageExt};
+use gtk4 as gtk;
+
+use gtk::prelude::{WidgetExt, FileExt};
 use gdk_pixbuf;
 use gdk_pixbuf::prelude::PixbufLoaderExt;
 
@@ -26,7 +28,7 @@ pub struct AspectRatioCollection {
 }
 
 pub trait ImageContainerEx {
-    fn set_pixbuf_from_file(&self, path_str: &str, window_width: i32, window_height: i32);
+    fn set_pixbuf_from_file(&self, file: &gio::File, window_width: i32, window_height: i32);
     fn get_modified_pixbuf_data(&self) -> Option<gdk_pixbuf::Pixbuf>;
     fn get_orig_width(&self) -> i32;
     fn get_orig_height(&self) -> i32;
@@ -41,9 +43,9 @@ impl ImageContainerEx for ImageContainer {
 
         Some(v)
     }
-    
-    fn set_pixbuf_from_file(&self, path_str: &str, window_width: i32, window_height: i32) {
-        let Some(pixbuf_data) = create_pixbuf_from_file(path_str.to_string()) else { return };
+
+    fn set_pixbuf_from_file(&self, file: &gio::File, window_width: i32, window_height: i32) {
+        let Some(pixbuf_data) = create_pixbuf_from_file(file) else { return };
 
         let _ = self.pixbuf_data_for_modify.replace_with(|_| Some(pixbuf_data.clone()));
 
@@ -70,6 +72,10 @@ impl ImageContainerEx for ImageContainer {
     }
 
     fn scale(&self, target_width: i32, target_height: i32) {
+        if target_width < 1 || target_height < 1 {
+            return;
+        }
+        
         let Some(pixbuf_data) = self.orig_pixbuf_data.borrow().clone() else { return };
 
         let width = pixbuf_data.width() as f64;
@@ -137,7 +143,7 @@ pub fn create_pixbuf_from_bytes(bytes: &[u8]) -> Option<gdk_pixbuf::Pixbuf> {
 }
 
 
-pub fn create_pixbuf_from_file(path_str: String) -> Option<gdk_pixbuf::Pixbuf> {
+pub fn create_pixbuf_from_file_path(path_str: String) -> Option<gdk_pixbuf::Pixbuf> {
     let Some(buf) = read_bytes_from_file(&path_str) else {
         return None
     };
@@ -157,6 +163,29 @@ pub fn create_pixbuf_from_file(path_str: String) -> Option<gdk_pixbuf::Pixbuf> {
                 
     Some(pixbuf_data)
 }
+
+pub fn create_pixbuf_from_file(file: &gio::File) -> Option<gdk_pixbuf::Pixbuf> {
+    let Ok((bytes, s)) = file.load_bytes(gio::Cancellable::NONE) else {
+        return None
+    };
+
+    let buf: Vec<u8> = bytes.to_vec();
+    let pixbuf_loader = gdk_pixbuf::PixbufLoader::new();
+    let result_of_pixbuf_loader_write = pixbuf_loader.write(&buf);
+    if result_of_pixbuf_loader_write.is_err() { return None };
+
+    let Some(pixbuf_data) = pixbuf_loader.pixbuf() else {
+        return None
+    };
+
+    let result_of_loader_close = pixbuf_loader.close();
+    if result_of_loader_close.is_err() {
+        return None;
+    }
+                
+    Some(pixbuf_data)
+}
+
 
 fn calc_aspect_raito(width: f64, height: f64) -> AspectRatioCollection {
     let for_width: f64 = width / height;

@@ -1,19 +1,21 @@
-use gtk::prelude::{GtkWindowExt, WidgetExt, ContainerExt, MenuShellExt, GtkMenuItemExt, ImageExt, DialogExt, FileChooserExt, FileChooserExtManual};
-use gtk::{Application, ApplicationWindow, Button, WindowPosition, Allocation};
-use glib;
+use gtk4 as gtk;
+use gdk4 as gdk;
+
+use gtk::prelude::{ApplicationExt, ApplicationWindowExt, GtkApplicationExt, GtkWindowExt, WidgetExt, DialogExt, FileChooserExt, FileChooserExtManual,  MenuModelExt, BoxExt, DrawingAreaExt, DrawingAreaExtManual, SurfaceExt, GdkCairoContextExt, PopoverExt, ActionMapExtManual, FileExt};
+use gtk::{Application, ApplicationWindow, Button, Allocation, DrawingArea, cairo, PopoverMenu, gio, glib};
+use glib::clone;
 use gdk_pixbuf;
 use gdk_pixbuf::prelude::PixbufLoaderExt;
 
 use crate::image_loader;
 use image_loader::{ImageContainer, ImageContainerEx};
 
-
 struct FileMenu {
-    root: gtk::MenuItem,
-    body: gtk::Menu,
-    load: gtk::MenuItem,
-    quit: gtk::MenuItem,
-    file_history: gtk::MenuItem,
+    root: gtk::PopoverMenu,
+    body: gtk::PopoverMenu,
+    load: gtk::MenuButton,
+    quit: gtk::MenuButton,
+    file_history: gtk::MenuButton,
 }
 
 #[derive(Default)]
@@ -27,151 +29,154 @@ struct MainWindow {
     v_box: gtk::Box,
     pages: std::rc::Rc<PageContainer>,
     image_container_list: std::rc::Rc<std::cell::RefCell<Vec<ImageContainer>>>,
-    menubar_size: std::rc::Rc<std::cell::Cell<gtk::Rectangle>>,
-    // menu_bar: gtk::MenuBar,
-    // file_menu: gtk::MenuItem,
 }
 
-fn scale_page(image_container_list: &std::rc::Rc<std::cell::RefCell<Vec<ImageContainer>>>, pages: &std::rc::Rc<PageContainer>, window: &ApplicationWindow, menubar_size: &std::rc::Rc<std::cell::Cell<gtk::Rectangle>>) {
+fn scale_page(image_container_list: &std::rc::Rc<std::cell::RefCell<Vec<ImageContainer>>>, width: i32, height: i32) {
 
+    if (width < 1) || (height < 1) {
+        return;
+    }
+    
     if image_container_list.borrow().is_empty() {
         return;
     }
     
-    let (width, height) = window.size();
-    println!("window size: {}, {}", &width, &height);
-
-    let final_height = std::cmp::max(height, menubar_size.get().height()) - std::cmp::min(height, menubar_size.get().height());
-    println!("final height: {}", final_height);
-    println!("menubar height: {}", menubar_size.get().height());
-
-    println!("image_container_list len on scale_page: {}", image_container_list.borrow().len());
-
-    image_container_list.borrow()[0].scale(width, final_height);
+    image_container_list.borrow()[0].scale(width, height);
 
     if let Some(v) = image_container_list.borrow()[0].get_modified_pixbuf_data() {
-        pages.left.clear();
+        // pages.left.clear();
         println!("modified width and height: {}, {}", v.width(), v.height());
-        pages.left.set_from_pixbuf(Some(&v));
+        // pages.left.set_from_pixbuf(Some(&v));
     }
 }
 
 
-fn set_page_from_file(file_path: String, image_container_list: &std::rc::Rc<std::cell::RefCell<Vec<ImageContainer>>>, pages: &std::rc::Rc<PageContainer>, window: &ApplicationWindow, menubar_size: &std::rc::Rc<std::cell::Cell<gtk::Rectangle>>) {
+fn set_page_from_file(file: &gio::File, image_container_list: &std::rc::Rc<std::cell::RefCell<Vec<ImageContainer>>>, pages: &std::rc::Rc<PageContainer>, width: i32, height: i32) {
     let _image_container = ImageContainer::default();
     image_container_list.borrow_mut().clear();
     image_container_list.borrow_mut().push(_image_container);
 
-    image_container_list.borrow()[0].set_pixbuf_from_file(&file_path, window.width_request(), window.height_request());
-    let (width, height) = window.size();
-    println!("window size: {}, {}", &width, &height);
+    image_container_list.borrow()[0].set_pixbuf_from_file(file, width, height);
+    image_container_list.borrow()[0].scale(width, height);
 
-    let final_height = std::cmp::max(height, menubar_size.get().height()) - std::cmp::min(height, menubar_size.get().height());
-    println!("final height: {}", final_height);
-    println!("menubar height: {}", menubar_size.get().height());
-    
-    image_container_list.borrow()[0].scale(width, final_height);
-
-    if let Some(v) = image_container_list.borrow()[0].get_modified_pixbuf_data() {
-        pages.left.set_pixbuf(Some(&v));
-    }
+    // if let Some(v) = image_container_list.borrow()[0].get_modified_pixbuf_data() {
+    //     pages.left.set_from_pixbuf(Some(&v));
+    // }
 }
 
-
 impl MainWindow {
-    fn new(app: &Application) -> MainWindow {
+    fn new() -> MainWindow {
 
-        // let _image_container = ImageContainer::default();
+        let window_ui_src = include_str!("window.ui");
         
-        MainWindow {
-            window: ApplicationWindow::new(app),
+        let builder = gtk::Builder::new();
+        let _ = builder.add_from_string(window_ui_src);
+
+        let _win: ApplicationWindow = builder.object("window").unwrap();
+
+        let _result = MainWindow {
+            window: _win,
             v_box: gtk::Box::new(gtk::Orientation::Vertical, 1),
             pages: std::rc::Rc::new(PageContainer::default()),
             image_container_list: std::rc::Rc::new(std::cell::RefCell::new(vec!())),
-            menubar_size: std::rc::Rc::new(std::cell::Cell::new(gtk::Rectangle::new(0, 0, 0, 0))),
-            // image_container: std::rc::Rc::new(_image_container),
-            // menu_bar: gtk::MenuBar::new(),
-            // file_menu: gtk::MenuItem::with_label("File"),
-        }
+        };
+
+        _result
     }
 
-    fn init(&self, width: i32, height: i32) {
-        self.window.set_title("Simple Comics Viewer");
+    fn init(&self, app: &Application, width: i32, height: i32) {
+        self.window.set_title(Some("Simple Comics Viewer"));
         self.window.set_default_size(width, height);
+        self.window.set_show_menubar(true);
 
-        let window = &self.window;
+        let _window = &self.window;
         let _image_container_list = &self.image_container_list;
         let _pages = &self.pages;
-        let _menubar_size = &self.menubar_size;
+
+        let menu_ui_src = include_str!("menu.ui");
+        let builder = gtk::Builder::new();
+        let _ = builder.add_from_string(menu_ui_src);
+        let _menubar: gio::MenuModel = builder.object("menu").unwrap();
+        app.set_menubar(Some(&_menubar));
+
+        let _drawing_area = gtk::DrawingArea::builder()
+            .hexpand_set(true)
+            .vexpand_set(true)
+            .build();
+        _drawing_area.set_draw_func(glib::clone!(@strong _image_container_list => move |area: &DrawingArea, ctx: &cairo::Context, width: i32, height: i32| {
+            if _image_container_list.borrow().is_empty() { return; }
+
+            let modified = _image_container_list.borrow()[0].get_modified_pixbuf_data().unwrap();
+            let format = if modified.has_alpha() {
+                cairo::Format::ARgb32
+            } else {
+                cairo::Format::Rgb24
+            };
+            let pix_w = modified.width();
+            let pix_h = modified.height();
+            let surface = cairo::ImageSurface::create(format, pix_w, pix_h).unwrap();
 
 
-        window.connect_size_allocate(glib::clone!(@weak window, @strong _image_container_list, @strong _menubar_size, @strong _pages  => move |_win, _rec| {
-            // println!("x: {}, y: {}\nwidth: {}, height: {}", _rec.x(), _rec.y(), _rec.width(), _rec.height());
-            // println!("orig width: {}, orig height: {}", _image_container.get_orig_width(), _image_container.get_orig_height());
-            scale_page(&_image_container_list, &_pages, &window, &_menubar_size);
+            let _ = ctx.set_source_surface(&surface, 0.0, 0.0);
+            let _ = ctx.set_source_pixbuf(&modified, 0.0, 0.0);
+            let _ = ctx.paint();
+        }));
+        let _ = _drawing_area.connect_resize(glib::clone!(@strong _image_container_list => move|_drawing_area: &DrawingArea, width: i32, height: i32| {
+            if _image_container_list.borrow().is_empty() { return; }
+            scale_page(&_image_container_list, width, height);
         }));
 
-        let menu_bar = gtk::MenuBar::new();
-        menu_bar.connect_size_allocate(glib::clone!(@strong _menubar_size => move |_menubar, _rec| {
-            _menubar_size.replace(*_rec);
-        }));
-        let file_menu = FileMenu {
-            root: gtk::MenuItem::with_label("File"),
-            body: gtk::Menu::new(),
-            load: gtk::MenuItem::with_label("Load"),
-            quit: gtk::MenuItem::with_label("Quit"),
-            file_history: gtk::MenuItem::with_label("File History"),
-        };
-        file_menu.body.add(&file_menu.load);
-        file_menu.load.connect_activate(glib::clone!(@weak window, @strong _pages, @strong _image_container_list, @strong _menubar_size => move |_| {
-            let dialog = gtk::FileChooserDialog::new(Some("File Select"), Some(&window), gtk::FileChooserAction::Open);
+        let _scroll = gtk::ScrolledWindow::builder().child(&_drawing_area).build();
+        _scroll.set_hexpand(true);
+        _scroll.set_vexpand(true);
+        self.v_box.append(&_scroll);
 
-            dialog.add_button("Open", gtk::ResponseType::Ok);
-            dialog.add_button("Cancel", gtk::ResponseType::Cancel);
+        let _drawing_area_ref = &_drawing_area;
 
-            dialog.connect_response(glib::clone!(@strong _pages, @strong _image_container_list, @strong _menubar_size => move|file_dialog, response| {
-                if response == gtk::ResponseType::Ok {
-                    println!("ok");
-                    let filename = file_dialog.filename();
-                    if filename.is_some() {
-                        let filename_unwraped = filename.unwrap();
-                        println!("{}", filename_unwraped.display());
+        let _action_entry: gio::ActionEntry<gtk::Application> = gio::ActionEntry::builder("file_open")
+            .activate(glib::clone!(@weak _window, @strong _pages, @strong _image_container_list, @strong _drawing_area_ref => move |_app: &gtk::Application, _action: &gio::SimpleAction, _user_data: Option<&glib::Variant>| {
+                println!("do action!");
 
-                        set_page_from_file(filename_unwraped.display().to_string(), &_image_container_list, &_pages, &window, &_menubar_size);
-    
+                let dialog = gtk::FileChooserDialog::new(Some("File Select"),
+                                                         Some(&_window),
+                                                         gtk::FileChooserAction::Open,
+                &[("Open", gtk::ResponseType::Ok), ("Cancel", gtk::ResponseType::Cancel)]);
+
+                dialog.connect_response(glib::clone!(@strong _pages, @strong _image_container_list, @strong _drawing_area_ref => move |file_dialog, response| {
+                    if response == gtk::ResponseType::Ok {
+                        println!("ok");
+                        let Some(file) = file_dialog.file() else { return };
+                        println!("{}", file.basename().unwrap().to_str().unwrap());
+                        
+                        set_page_from_file(&file, &_image_container_list, &_pages, _drawing_area_ref.content_width(), _drawing_area_ref.content_height());
+                        _drawing_area_ref.queue_draw();
                     }
-                }
-                file_dialog.close();
-            }));
+                    file_dialog.close();
+                }));
             
-            dialog.show_all();
-        }));
-        file_menu.body.add(&file_menu.file_history);
-        file_menu.body.add(&file_menu.quit);
-        file_menu.quit.connect_activate(glib::clone!(@weak window => move |_| {
-            window.close();
-        }));
-        
-        file_menu.root.set_submenu(Some(&file_menu.body));
-        menu_bar.append(&file_menu.root);
-        self.v_box.add(&menu_bar);
+                dialog.show();
+            }))
+            .build();
 
-        let _scroll = gtk::ScrolledWindow::builder().child(&_pages.left).build();
-        _scroll.set_expand(true);
-        self.v_box.add(&_scroll);
+        app.add_action_entries(vec!(_action_entry));
+        self.window.set_application(Some(app));
 
-        self.window.add(&self.v_box);
+        self.window.set_child(Some(&self.v_box));
     }
 
     fn run(&self) {
-        self.window.show_all();
+        // self.window.set_show_menubar(true);
+        self.window.show();
     }
 
 }
 
-pub fn activate(app: &Application) {
-    let main = MainWindow::new(app);
-    main.init(1024, 768);
-    main.run();
+fn on_resize(width: i32, height: i32) {
+    println!("{}, {}\n", width, height);
+}
 
+pub fn activate(app: &Application) {
+    let main = MainWindow::new();
+    main.init(app, 1024, 768);
+    main.run();
 }

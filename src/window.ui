@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<interface>
+  <object class="GtkApplicationWindow" id="window">
+    <child>
+      <menu id="app-menu">
+        <section>
+          <item>
+            <attribute name="label" translatable="yes">_File</attribute>
+          </item>
+        </section>
+      </menu>
+    </child>
+  </object>
+</interface>
