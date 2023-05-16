@@ -104,7 +104,9 @@ impl MainWindow {
             .vexpand_set(true)
             .build();
         _drawing_area.set_draw_func(glib::clone!(@strong _image_container_list => move |area: &DrawingArea, ctx: &cairo::Context, width: i32, height: i32| {
-            if _image_container_list.borrow().is_empty() { return; }
+            if _image_container_list.borrow().is_empty() {
+                return;
+            }
 
             let modified = _image_container_list.borrow()[0].get_modified_pixbuf_data().unwrap();
             let format = if modified.has_alpha() {
@@ -121,6 +123,25 @@ impl MainWindow {
             let _ = ctx.set_source_pixbuf(&modified, 0.0, 0.0);
             let _ = ctx.paint();
         }));
+
+        // _drawing_area.set_draw_func(glib::clone!(@strong _image_container_list => move |area: &DrawingArea, ctx: &cairo::Context, width: i32, height: i32| {
+        //     if _image_container_list.borrow().is_empty() { return; }
+
+        //     let modified = _image_container_list.borrow()[0].get_modified_pixbuf_data().unwrap();
+        //     let format = if modified.has_alpha() {
+        //         cairo::Format::ARgb32
+        //     } else {
+        //         cairo::Format::Rgb24
+        //     };
+        //     let pix_w = modified.width();
+        //     let pix_h = modified.height();
+        //     let surface = cairo::ImageSurface::create(format, pix_w, pix_h).unwrap();
+
+
+        //     let _ = ctx.set_source_surface(&surface, 0.0, 0.0);
+        //     let _ = ctx.set_source_pixbuf(&modified, 0.0, 0.0);
+        //     let _ = ctx.paint();
+        // }));
         let _ = _drawing_area.connect_resize(glib::clone!(@strong _image_container_list => move|_drawing_area: &DrawingArea, width: i32, height: i32| {
             if _image_container_list.borrow().is_empty() { return; }
             scale_page(&_image_container_list, width, height);
@@ -147,8 +168,10 @@ impl MainWindow {
                         println!("ok");
                         let Some(file) = file_dialog.file() else { return };
                         println!("{}", file.basename().unwrap().to_str().unwrap());
+
+                        println!("drawing area allocated height: {}", _drawing_area_ref.allocated_height());
                         
-                        set_page_from_file(&file, &_image_container_list, &_pages, _drawing_area_ref.content_width(), _drawing_area_ref.content_height());
+                        set_page_from_file(&file, &_image_container_list, &_pages, _drawing_area_ref.allocated_width(), _drawing_area_ref.allocated_height());
                         _drawing_area_ref.queue_draw();
                     }
                     file_dialog.close();
