@@ -160,10 +160,6 @@ impl MainWindow {
 
 }
 
-fn on_resize(width: i32, height: i32) {
-    println!("{}, {}\n", width, height);
-}
-
 pub fn activate(app: &Application) {
     let main = MainWindow::new();
     main.init(app, 1024, 768);
