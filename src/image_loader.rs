@@ -9,6 +9,8 @@ use gtk::prelude::{WidgetExt, FileExt};
 use gdk_pixbuf;
 use gdk_pixbuf::prelude::PixbufLoaderExt;
 
+use crate::utils;
+
 enum PictureDirectionType {
     Vertical,
     Horizontal,
@@ -17,7 +19,7 @@ enum PictureDirectionType {
 
 #[derive(Default, Clone)]
 pub struct ImageContainer {
-    pixbuf_data_for_modify: RefCell<Option<gdk_pixbuf::Pixbuf>>,
+    modified_pixbuf_data: RefCell<Option<gdk_pixbuf::Pixbuf>>,
     orig_pixbuf_data: RefCell<Option<gdk_pixbuf::Pixbuf>>,
 }
 
@@ -30,14 +32,17 @@ pub struct AspectRatioCollection {
 pub trait ImageContainerEx {
     fn set_pixbuf_from_file(&self, file: &gio::File, window_width: i32, window_height: i32);
     fn get_modified_pixbuf_data(&self) -> Option<gdk_pixbuf::Pixbuf>;
-    fn get_orig_width(&self) -> i32;
-    fn get_orig_height(&self) -> i32;
+    fn get_modified_width(&self) -> Option<i32>;
+    fn get_modified_height(&self) -> Option<i32>;
+    fn get_orig_width(&self) -> Option<i32>;
+    fn get_orig_height(&self) -> Option<i32>;
     fn scale(&self, target_width: i32, target_height: i32);
 }
 
+
 impl ImageContainerEx for ImageContainer {
     fn get_modified_pixbuf_data(&self) -> Option<gdk_pixbuf::Pixbuf> {
-        let Some(v) = self.pixbuf_data_for_modify.borrow().clone() else {
+        let Some(v) = self.modified_pixbuf_data.borrow().clone() else {
             return None;
         };
 
@@ -47,28 +52,36 @@ impl ImageContainerEx for ImageContainer {
     fn set_pixbuf_from_file(&self, file: &gio::File, window_width: i32, window_height: i32) {
         let Some(pixbuf_data) = create_pixbuf_from_file(file) else { return };
 
-        let _ = self.pixbuf_data_for_modify.replace_with(|_| Some(pixbuf_data.clone()));
+        let _ = self.modified_pixbuf_data.replace_with(|_| Some(pixbuf_data.clone()));
 
         let _ = self.orig_pixbuf_data.replace_with(|_| Some(pixbuf_data.clone()));
 
     }
 
-    fn get_orig_width(&self) -> i32 {
-        let tmp = self.orig_pixbuf_data.borrow();
-        let Some(v) = tmp.as_ref() else {
-            return -1;
-        };
-
-        v.width()
+    fn get_modified_width(&self) -> Option<i32> {
+        utils::get_value_with_option_from_ref_cell_option(&self.modified_pixbuf_data, |x| {
+            x.width()
+        })
     }
 
-    fn get_orig_height(&self) -> i32 {
-        let tmp = self.orig_pixbuf_data.borrow();
-        let Some(v) = tmp.as_ref() else {
-            return -1;
-        };
+    fn get_modified_height(&self) -> Option<i32> {
+        utils::get_value_with_option_from_ref_cell_option(&self.modified_pixbuf_data, |x| {
+            x.height()
+        })
+    }
 
-        v.height()
+
+    fn get_orig_width(&self) -> Option<i32> {
+        utils::get_value_with_option_from_ref_cell_option(&self.orig_pixbuf_data, |x| {
+            x.width()
+        })
+
+    }
+
+    fn get_orig_height(&self) -> Option<i32> {
+        utils::get_value_with_option_from_ref_cell_option(&self.orig_pixbuf_data, |x| {
+            x.height()
+        })
     }
 
     fn scale(&self, target_width: i32, target_height: i32) {
@@ -113,7 +126,7 @@ impl ImageContainerEx for ImageContainer {
         }
 
         let Some(scaled) = pixbuf_data.scale_simple(result_width, result_height, gdk_pixbuf::InterpType::Bilinear) else { return };
-        let _ = self.pixbuf_data_for_modify.replace_with(|_| Some(scaled.clone()));
+        let _ = self.modified_pixbuf_data.replace_with(|_| Some(scaled.clone()));
     }
 }
 

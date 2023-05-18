@@ -10,6 +10,12 @@ use gdk_pixbuf::prelude::PixbufLoaderExt;
 use crate::image_loader;
 use image_loader::{ImageContainer, ImageContainerEx};
 
+#[derive(Default)]
+struct Page {
+    x: i32,
+    y: i32
+}
+
 struct MainWindow {
     window: ApplicationWindow,
     v_box: gtk::Box,
