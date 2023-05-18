@@ -22,6 +22,24 @@ struct MainWindow {
     image_container_list: std::rc::Rc<std::cell::RefCell<Vec<ImageContainer>>>,
 }
 
+fn calc_margin(pixbuf_data: &gdk_pixbuf::Pixbuf, win_width: i32, win_height: i32) -> i32 {
+    let pic_height = pixbuf_data.height();
+    let pic_width = pixbuf_data.width();
+
+    let diff = win_width - pic_width;
+
+
+    if diff < 0 {
+        return -1;
+    }
+
+    if diff == 0 {
+        diff
+    } else {
+        diff / 2
+    }
+}
+
 fn scale_page(image_container_list: &std::rc::Rc<std::cell::RefCell<Vec<ImageContainer>>>, width: i32, height: i32) {
 
     if (width < 1) || (height < 1) {
@@ -68,6 +86,7 @@ fn create_action_entry_for_menu(_window: &gtk::ApplicationWindow, _image_contain
                         println!("drawing area allocated height: {}", _drawing_area_ref.allocated_height());
                         
                         set_page_from_file(&file, &_image_container_list, _drawing_area_ref.allocated_width(), _drawing_area_ref.allocated_height());
+                        
                         _drawing_area_ref.queue_draw();
                     }
                     file_dialog.close();
@@ -131,8 +150,12 @@ impl MainWindow {
             let pix_h = modified.height();
             let Ok(surface) = cairo::ImageSurface::create(format, pix_w, pix_h) else { return; };
 
-            let _ = ctx.set_source_surface(&surface, 0.0, 0.0);
-            let _ = ctx.set_source_pixbuf(&modified, 0.0, 0.0);
+            let margin = calc_margin(&modified, area.allocated_width(), area.allocated_height());
+            let margin_f_for_surface = f64::from(margin.clone());
+            let margin_f_for_pixbuf = f64::from(margin.clone());
+
+            let _ = ctx.set_source_surface(&surface, margin_f_for_surface, 0.0);
+            let _ = ctx.set_source_pixbuf(&modified, margin_f_for_pixbuf, 0.0);
             let _ = ctx.paint();
         }));
 
