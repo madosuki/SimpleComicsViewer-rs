@@ -20,9 +20,10 @@ struct MainWindow {
     window: ApplicationWindow,
     v_box: gtk::Box,
     image_container_list: std::rc::Rc<std::cell::RefCell<Vec<ImageContainer>>>,
+    is_single: bool,
 }
 
-fn calc_margin(pixbuf_data: &gdk_pixbuf::Pixbuf, win_width: i32, win_height: i32) -> i32 {
+fn calc_margin_for_single(pixbuf_data: &gdk_pixbuf::Pixbuf, win_width: i32, win_height: i32) -> i32 {
     let pic_height = pixbuf_data.height();
     let pic_width = pixbuf_data.width();
 
@@ -40,7 +41,7 @@ fn calc_margin(pixbuf_data: &gdk_pixbuf::Pixbuf, win_width: i32, win_height: i32
     }
 }
 
-fn scale_page(image_container_list: &std::rc::Rc<std::cell::RefCell<Vec<ImageContainer>>>, width: i32, height: i32) {
+fn scale_page_for_single(image_container_list: &std::rc::Rc<std::cell::RefCell<Vec<ImageContainer>>>, width: i32, height: i32) {
 
     if (width < 1) || (height < 1) {
         return;
@@ -51,14 +52,10 @@ fn scale_page(image_container_list: &std::rc::Rc<std::cell::RefCell<Vec<ImageCon
     }
     
     image_container_list.borrow()[0].scale(width, height);
-
-    if let Some(v) = image_container_list.borrow()[0].get_modified_pixbuf_data() {
-        println!("modified width and height: {}, {}", v.width(), v.height());
-    }
 }
 
 
-fn set_page_from_file(file: &gio::File, image_container_list: &std::rc::Rc<std::cell::RefCell<Vec<ImageContainer>>>, width: i32, height: i32) {
+fn set_page_from_file_for_single(file: &gio::File, image_container_list: &std::rc::Rc<std::cell::RefCell<Vec<ImageContainer>>>, width: i32, height: i32) {
     let _image_container = ImageContainer::default();
     image_container_list.borrow_mut().clear();
     image_container_list.borrow_mut().push(_image_container);
@@ -85,7 +82,7 @@ fn create_action_entry_for_menu(_window: &gtk::ApplicationWindow, _image_contain
 
                         println!("drawing area allocated height: {}", _drawing_area_ref.allocated_height());
                         
-                        set_page_from_file(&file, &_image_container_list, _drawing_area_ref.allocated_width(), _drawing_area_ref.allocated_height());
+                        set_page_from_file_for_single(&file, &_image_container_list, _drawing_area_ref.allocated_width(), _drawing_area_ref.allocated_height());
                         
                         _drawing_area_ref.queue_draw();
                     }
@@ -112,6 +109,7 @@ impl MainWindow {
             window: _win,
             v_box: gtk::Box::new(gtk::Orientation::Vertical, 1),
             image_container_list: std::rc::Rc::new(std::cell::RefCell::new(vec!())),
+            is_single: true,
         };
 
         _result
@@ -150,7 +148,7 @@ impl MainWindow {
             let pix_h = modified.height();
             let Ok(surface) = cairo::ImageSurface::create(format, pix_w, pix_h) else { return; };
 
-            let margin = calc_margin(&modified, area.allocated_width(), area.allocated_height());
+            let margin = calc_margin_for_single(&modified, area.allocated_width(), area.allocated_height());
             let margin_f_for_surface = f64::from(margin.clone());
             let margin_f_for_pixbuf = f64::from(margin.clone());
 
@@ -161,7 +159,7 @@ impl MainWindow {
 
         let _ = _drawing_area.connect_resize(glib::clone!(@strong _image_container_list => move|_drawing_area: &DrawingArea, width: i32, height: i32| {
             if _image_container_list.borrow().is_empty() { return; }
-            scale_page(&_image_container_list, width, height);
+            scale_page_for_single(&_image_container_list, width, height);
         }));
 
         let _scroll = gtk::ScrolledWindow::builder().child(&_drawing_area).build();
