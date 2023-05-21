@@ -12,22 +12,29 @@ use image_loader::{ImageContainer, ImageContainerEx};
 
 #[derive(Default)]
 struct Page {
-    x: i32,
-    y: i32
+    x: usize,
+    y: usize
+}
+
+#[derive(Default)]
+struct PagesInfo {
+    pages: std::rc::Rc<std::cell::RefCell<Vec<Page>>>,
+    current_page_index: usize,
 }
 
 struct MainWindow {
     window: ApplicationWindow,
     v_box: gtk::Box,
     image_container_list: std::rc::Rc<std::cell::RefCell<Vec<ImageContainer>>>,
-    is_single: bool,
+    is_single: std::rc::Rc<bool>,
+    pages_info: std::rc::Rc<PagesInfo>,
 }
 
-fn calc_margin_for_single(pixbuf_data: &gdk_pixbuf::Pixbuf, win_width: i32, win_height: i32) -> i32 {
+fn calc_margin_for_single(pixbuf_data: &gdk_pixbuf::Pixbuf, target_width: i32, target_height: i32) -> i32 {
     let pic_height = pixbuf_data.height();
     let pic_width = pixbuf_data.width();
 
-    let diff = win_width - pic_width;
+    let diff = target_width - pic_width;
 
 
     if diff < 0 {
@@ -41,18 +48,44 @@ fn calc_margin_for_single(pixbuf_data: &gdk_pixbuf::Pixbuf, win_width: i32, win_
     }
 }
 
-fn scale_page_for_single(image_container_list: &std::rc::Rc<std::cell::RefCell<Vec<ImageContainer>>>, width: i32, height: i32) {
+fn scale_page_for_single(image_container_list: &std::rc::Rc<std::cell::RefCell<Vec<ImageContainer>>>, current_page_index: usize, target_width: i32, target_height: i32) {
 
-    if (width < 1) || (height < 1) {
+    if (target_width < 1) || (target_height < 1) {
         return;
     }
     
     if image_container_list.borrow().is_empty() {
         return;
     }
+
+    if (current_page_index >= image_container_list.borrow().len()) {
+        return;
+    }
+
     
-    image_container_list.borrow()[0].scale(width, height);
+    image_container_list.borrow()[current_page_index].scale(target_width, target_height);
 }
+
+fn scale_page_for_dual(image_container_list: &std::rc::Rc<std::cell::RefCell<Vec<ImageContainer>>>, current_page_index: usize, target_width: i32, target_height: i32) {
+
+    if (target_width < 1) || (target_height < 1) {
+        return;
+    }
+    
+    if image_container_list.borrow().is_empty() {
+        return;
+    }
+
+    let next_index = current_page_index + 1;
+    if (next_index >= image_container_list.borrow().len()) {
+        return;
+    }
+
+    let final_target_width = target_width / 2;
+    image_container_list.borrow()[current_page_index].scale(final_target_width, target_height);
+    image_container_list.borrow()[next_index].scale(final_target_width, target_height);
+}
+
 
 
 fn set_page_from_file_for_single(file: &gio::File, image_container_list: &std::rc::Rc<std::cell::RefCell<Vec<ImageContainer>>>, width: i32, height: i32) {
@@ -109,7 +142,8 @@ impl MainWindow {
             window: _win,
             v_box: gtk::Box::new(gtk::Orientation::Vertical, 1),
             image_container_list: std::rc::Rc::new(std::cell::RefCell::new(vec!())),
-            is_single: true,
+            is_single: std::rc::Rc::new(true),
+            pages_info: std::rc::Rc::new(PagesInfo::default()),
         };
 
         _result
@@ -122,6 +156,7 @@ impl MainWindow {
 
         let _window = &self.window;
         let _image_container_list = &self.image_container_list;
+        let _pages_info = &self.pages_info;
 
         let menu_ui_src = include_str!("menu.ui");
         let builder = gtk::Builder::new();
@@ -133,12 +168,12 @@ impl MainWindow {
             .hexpand_set(true)
             .vexpand_set(true)
             .build();
-        _drawing_area.set_draw_func(glib::clone!(@strong _image_container_list => move |area: &DrawingArea, ctx: &cairo::Context, width: i32, height: i32| {
+        _drawing_area.set_draw_func(glib::clone!(@strong _image_container_list, @strong _pages_info => move |area: &DrawingArea, ctx: &cairo::Context, width: i32, height: i32| {
             if _image_container_list.borrow().is_empty() {
                 return;
             }
 
-            let Some(modified) = _image_container_list.borrow()[0].get_modified_pixbuf_data() else { return; };
+            let Some(modified) = _image_container_list.borrow()[_pages_info.current_page_index.clone()].get_modified_pixbuf_data() else { return; };
             let format = if modified.has_alpha() {
                 cairo::Format::ARgb32
             } else {
@@ -157,9 +192,9 @@ impl MainWindow {
             let _ = ctx.paint();
         }));
 
-        let _ = _drawing_area.connect_resize(glib::clone!(@strong _image_container_list => move|_drawing_area: &DrawingArea, width: i32, height: i32| {
+        let _ = _drawing_area.connect_resize(glib::clone!(@strong _image_container_list, @strong _pages_info => move|_drawing_area: &DrawingArea, width: i32, height: i32| {
             if _image_container_list.borrow().is_empty() { return; }
-            scale_page_for_single(&_image_container_list, width, height);
+            scale_page_for_single(&_image_container_list, _pages_info.current_page_index.clone(), width, height);
         }));
 
         let _scroll = gtk::ScrolledWindow::builder().child(&_drawing_area).build();
