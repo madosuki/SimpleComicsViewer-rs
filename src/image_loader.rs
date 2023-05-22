@@ -130,7 +130,7 @@ impl ImageContainerEx for ImageContainer {
     }
 }
 
-pub fn read_bytes_from_file(path_str: &str) -> Option<Vec<u8>> {
+pub fn read_bytes_from_file_path(path_str: &str) -> Option<Vec<u8>> {
     let path = Some(std::path::Path::new(path_str)).unwrap();
     let mut f = File::open(path).unwrap();
     let mut buf: Vec<u8> = vec!();
@@ -157,7 +157,7 @@ pub fn create_pixbuf_from_bytes(bytes: &[u8]) -> Option<gdk_pixbuf::Pixbuf> {
 
 
 pub fn create_pixbuf_from_file_path(path_str: String) -> Option<gdk_pixbuf::Pixbuf> {
-    let Some(buf) = read_bytes_from_file(&path_str) else {
+    let Some(buf) = read_bytes_from_file_path(&path_str) else {
         return None
     };
 

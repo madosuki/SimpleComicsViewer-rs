@@ -8,6 +8,7 @@ use gdk_pixbuf;
 use gdk_pixbuf::prelude::PixbufLoaderExt;
 
 use crate::image_loader;
+use crate::utils;
 use image_loader::{ImageContainer, ImageContainerEx};
 
 #[derive(Default)]
@@ -58,7 +59,7 @@ fn scale_page_for_single(image_container_list: &std::rc::Rc<std::cell::RefCell<V
         return;
     }
 
-    if (current_page_index >= image_container_list.borrow().len()) {
+    if current_page_index >= image_container_list.borrow().len() {
         return;
     }
 
@@ -77,7 +78,7 @@ fn scale_page_for_dual(image_container_list: &std::rc::Rc<std::cell::RefCell<Vec
     }
 
     let next_index = current_page_index + 1;
-    if (next_index >= image_container_list.borrow().len()) {
+    if next_index >= image_container_list.borrow().len() {
         return;
     }
 
@@ -89,13 +90,15 @@ fn scale_page_for_dual(image_container_list: &std::rc::Rc<std::cell::RefCell<Vec
 
 
 fn set_page_from_file_for_single(file: &gio::File, image_container_list: &std::rc::Rc<std::cell::RefCell<Vec<ImageContainer>>>, width: i32, height: i32) {
-    let _image_container = ImageContainer::default();
     image_container_list.borrow_mut().clear();
+    
+    let _image_container = ImageContainer::default();
     image_container_list.borrow_mut().push(_image_container);
 
     image_container_list.borrow()[0].set_pixbuf_from_file(file, width, height);
     image_container_list.borrow()[0].scale(width, height);
 }
+
 
 fn create_action_entry_for_menu(_window: &gtk::ApplicationWindow, _image_container_list: &std::rc::Rc<std::cell::RefCell<Vec<ImageContainer>>>, _drawing_area_ref: &DrawingArea) -> gio::ActionEntry<gtk::Application> {
         let _action_entry: gio::ActionEntry<gtk::Application> = gio::ActionEntry::builder("file_open")
@@ -112,12 +115,15 @@ fn create_action_entry_for_menu(_window: &gtk::ApplicationWindow, _image_contain
                         println!("ok");
                         let Some(file) = file_dialog.file() else { return };
                         println!("{}", file.basename().unwrap().to_str().unwrap());
-
+                        match utils::detect_file_type(&file) {
+                            utils::FileType::NONE => { file_dialog.close(); },
+                            _ => {
+                                set_page_from_file_for_single(&file, &_image_container_list, _drawing_area_ref.allocated_width(), _drawing_area_ref.allocated_height());
+                            }
+                        };
                         println!("drawing area allocated height: {}", _drawing_area_ref.allocated_height());
-                        
-                        set_page_from_file_for_single(&file, &_image_container_list, _drawing_area_ref.allocated_width(), _drawing_area_ref.allocated_height());
-                        
                         _drawing_area_ref.queue_draw();
+
                     }
                     file_dialog.close();
                 }));
@@ -125,6 +131,7 @@ fn create_action_entry_for_menu(_window: &gtk::ApplicationWindow, _image_contain
                 dialog.show();
             }))
         .build();
+
     _action_entry
 }
 
