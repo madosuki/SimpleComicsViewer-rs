@@ -12,6 +12,7 @@ where F: Fn(&T) -> R {
 
 pub enum FileType {
     ZIP,
+    SPANNED_ZIP,
     PNG,
     JPG,
     NONE,
@@ -43,10 +44,14 @@ pub fn detect_file_type(file: &gio::File) -> FileType {
         return FileType::PNG;
     }
 
-    if first == 0x50 && second == 0x4B {
-        if (third == 0x3 && fourth == 0x4) || (third == 0x7 && fourth == 0x8) {
+    if first == 0x50 && second == 0x4B && third == 0x3 && fourth == 0x4 {
+        if third == 0x3 && fourth == 0x4 {
             return FileType::ZIP;
-        } 
+        }
+
+        if third == 0x7 && fourth == 0x8 {
+            return FileType::SPANNED_ZIP;
+        }
     }
     
 
