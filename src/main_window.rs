@@ -89,14 +89,22 @@ fn scale_page_for_dual(image_container_list: &std::rc::Rc<std::cell::RefCell<Vec
 
 
 
-fn set_page_from_file_for_single(file: &gio::File, image_container_list: &std::rc::Rc<std::cell::RefCell<Vec<ImageContainer>>>, width: i32, height: i32) {
-    image_container_list.borrow_mut().clear();
-    
+fn set_page_from_file_for_single(file: &gio::File, _image_container_list: &std::rc::Rc<std::cell::RefCell<Vec<ImageContainer>>>, page_index: usize, width: i32, height: i32) {
     let _image_container = ImageContainer::default();
-    image_container_list.borrow_mut().push(_image_container);
+    _image_container_list.borrow_mut().push(_image_container);
 
-    image_container_list.borrow()[0].set_pixbuf_from_file(file, width, height);
-    image_container_list.borrow()[0].scale(width, height);
+    _image_container_list.borrow()[page_index].set_pixbuf_from_file(file, width, height);
+    _image_container_list.borrow()[page_index].scale(width, height);
+}
+
+fn open_and_set_image(file: &gio::File, _image_container_list: &std::rc::Rc<std::cell::RefCell<Vec<ImageContainer>>>, _drawing_area_ref: &DrawingArea, page_index: usize) {
+    println!("page index: {}", &page_index);
+    match utils::detect_file_type(&file) {
+        utils::FileType::NONE => { return; },
+        _ => {
+            set_page_from_file_for_single(&file, &_image_container_list, page_index, _drawing_area_ref.allocated_width(), _drawing_area_ref.allocated_height());
+        }
+    };
 }
 
 
@@ -114,13 +122,30 @@ fn create_action_entry_for_menu(_window: &gtk::ApplicationWindow, _image_contain
                     if response == gtk::ResponseType::Ok {
                         println!("ok");
                         let Some(file) = file_dialog.file() else { return };
-                        println!("{}", file.basename().unwrap().to_str().unwrap());
-                        match utils::detect_file_type(&file) {
-                            utils::FileType::NONE => { file_dialog.close(); },
-                            _ => {
-                                set_page_from_file_for_single(&file, &_image_container_list, _drawing_area_ref.allocated_width(), _drawing_area_ref.allocated_height());
-                            }
+                        let Some(_path) = file.path() else { return };
+                        if !_path.is_file() { return; }
+                        
+                        let Some(_dir) = _path.parent() else {
+                            _image_container_list.borrow_mut().clear();
+                            open_and_set_image(&file, &_image_container_list, &_drawing_area_ref, 0);
+                            _drawing_area_ref.queue_draw();
+                            return;
                         };
+
+                        _image_container_list.borrow_mut().clear();
+                        let mut count: usize = 0;
+                        println!("{}", _dir.display());
+                        for entry in _dir.read_dir().expect("read_dir call failed") {
+                            if let Ok(entry) = entry {
+                                if entry.file_type().unwrap().is_file() {
+                                    let tmp_path = entry.path();
+                                    let tmp_file = gio::File::for_path(&tmp_path);
+                                    open_and_set_image(&tmp_file, &_image_container_list, &_drawing_area_ref, count);
+                                    count = count + 1;
+                                    println!("{:?}", entry.path());
+                                }
+                            }
+                        }
                         println!("drawing area allocated height: {}", _drawing_area_ref.allocated_height());
                         _drawing_area_ref.queue_draw();
 
