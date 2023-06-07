@@ -9,6 +9,8 @@ use gtk::prelude::{WidgetExt, FileExt};
 use gdk_pixbuf;
 use gdk_pixbuf::prelude::PixbufLoaderExt;
 
+use libarchive3_sys_by_madosuki;
+
 use crate::utils;
 
 enum PictureDirectionType {
@@ -205,7 +207,7 @@ fn calc_aspect_raito(width: f64, height: f64) -> AspectRatioCollection {
     let for_height: f64 = height / width;
 
     AspectRatioCollection {
-        for_width: for_width,
-        for_height: for_height,
+        for_width,
+        for_height,
     }
 }
