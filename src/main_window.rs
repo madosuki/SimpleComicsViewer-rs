@@ -7,9 +7,9 @@ use glib::clone;
 use gdk_pixbuf;
 use gdk_pixbuf::prelude::PixbufLoaderExt;
 
-use crate::image_loader;
+use crate::image_container;
 use crate::utils;
-use image_loader::{ImageContainer, ImageContainerEx};
+use image_container::{ImageContainer, ImageContainerEx};
 
 #[derive(Default)]
 struct Page {

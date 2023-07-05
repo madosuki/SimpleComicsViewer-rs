@@ -9,7 +9,7 @@ use gtk::prelude::{WidgetExt, FileExt};
 use gdk_pixbuf;
 use gdk_pixbuf::prelude::PixbufLoaderExt;
 
-use libarchive3_sys_by_madosuki;
+use libarchive_extractor_rs;
 
 use crate::utils;
 
@@ -211,3 +211,4 @@ fn calc_aspect_raito(width: f64, height: f64) -> AspectRatioCollection {
         for_height,
     }
 }
+

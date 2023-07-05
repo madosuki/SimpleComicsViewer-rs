@@ -1,5 +1,5 @@
 mod main_window;
-mod image_loader;
+mod image_container;
 
 use gtk4 as gtk;
 use gtk::Application;
