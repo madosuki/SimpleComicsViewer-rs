@@ -47,7 +47,6 @@ pub fn detect_file_type_from_bytes(bytes: &[u8]) -> FileType {
     }
 
     FileType::NONE
-    
 }
 
 pub fn detect_file_type_from_file(file: &gio::File) -> FileType {
@@ -56,7 +55,6 @@ pub fn detect_file_type_from_file(file: &gio::File) -> FileType {
     };
 
     let tmp = bytes.to_vec();
-
-    detect_file_type_from_bytes(&tmp);
+    detect_file_type_from_bytes(&tmp)
 }
 
