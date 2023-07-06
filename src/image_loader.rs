@@ -5,7 +5,7 @@ use libarchive_extractor_rs::{ ArchiveExt, DecompressedData };
 
 use crate::utils;
 
-fn load_from_compressed_file_to_memory(pathname: &str) -> Result<()> {
+pub fn load_from_compressed_file_to_memory(pathname: &str) -> Result<Vec<DecompressedData>> {
     let archive = libarchive_extractor_rs::Archive::new()?;
 
     let result: Vec<DecompressedData> = archive.extract_to_memory(pathname)?
@@ -18,5 +18,5 @@ fn load_from_compressed_file_to_memory(pathname: &str) -> Result<()> {
     
     archive.read_close_and_free()?;
     
-    Ok(())
+    Ok(result)
 }
