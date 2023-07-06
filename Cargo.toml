@@ -14,3 +14,4 @@ glib = "0.17.9"
 gdk-pixbuf = "0.17.0"
 libarchive3-sys-by-madosuki = { git = "https://github.com/madosuki/libarchive3-sys-by-madosuki"}
 libarchive_extractor-rs = { git = "https://github.com/madosuki/libarchive_extractor-rs" }
+anyhow = "1.0"

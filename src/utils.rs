@@ -18,23 +18,15 @@ pub enum FileType {
     NONE,
 }
 
-pub fn detect_file_type(file: &gio::File) -> FileType {
-    let Ok((bytes, s)) = file.load_bytes(gio::Cancellable::NONE) else {
-        return FileType::NONE
-    };
-
-    let tmp = bytes.to_vec();
-
-    if tmp.len() < 4 {
+pub fn detect_file_type_from_bytes(bytes: &[u8]) -> FileType {
+    if bytes.len() < 4 {
         return FileType::NONE;
     }
 
-    let first = tmp[0];
-    let second = tmp[1];
-    let third = tmp[2];
-    let fourth = tmp[3];
-
-    // println!("{}, {}, {}, {}", &first, &second, &third, &fourth);
+    let first = bytes[0];
+    let second = bytes[1];
+    let third = bytes[2];
+    let fourth = bytes[3];
 
     if first == 0xFF && second == 0xD8 && third == 0xFF {
         return FileType::JPG;
@@ -53,8 +45,18 @@ pub fn detect_file_type(file: &gio::File) -> FileType {
             return FileType::SPANNED_ZIP;
         }
     }
-    
 
     FileType::NONE
+    
+}
+
+pub fn detect_file_type_from_file(file: &gio::File) -> FileType {
+    let Ok((bytes, s)) = file.load_bytes(gio::Cancellable::NONE) else {
+        return FileType::NONE
+    };
+
+    let tmp = bytes.to_vec();
+
+    detect_file_type_from_bytes(&tmp);
 }
 
