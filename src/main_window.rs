@@ -8,6 +8,7 @@ use gdk_pixbuf;
 use gdk_pixbuf::prelude::PixbufLoaderExt;
 
 use crate::image_container;
+use crate::image_loader;
 use crate::utils;
 use image_container::{ImageContainer, ImageContainerEx};
 
@@ -97,10 +98,29 @@ fn set_page_from_file_for_single(file: &gio::File, _image_container_list: &std::
     _image_container_list.borrow()[page_index].scale(width, height);
 }
 
+fn set_page_from_bytes_for_single(bytes: &[u8], _image_container_list: &std::rc::Rc<std::cell::RefCell<Vec<ImageContainer>>>, page_index: usize, width: i32, height: i32) {
+    let _image_container = ImageContainer::default();
+
+    _image_container_list.borrow_mut().push(_image_container);
+    
+    _image_container_list.borrow()[page_index].set_pixbuf_from_bytes(bytes, width, height);
+    _image_container_list.borrow()[page_index].scale(width, height);
+}
+
 fn open_and_set_image(file: &gio::File, _image_container_list: &std::rc::Rc<std::cell::RefCell<Vec<ImageContainer>>>, _drawing_area_ref: &DrawingArea, page_index: usize) {
     println!("page index: {}", &page_index);
-    match utils::detect_file_type(&file) {
+    match utils::detect_file_type_from_file(&file) {
         utils::FileType::NONE => { return; },
+        utils::FileType::ZIP => {
+            let Some(_pathbuf) = file.path() else { return; };
+            let Some(_pathname) = _pathbuf.as_path().to_str() else {
+                return;
+            };
+            let _extracted = image_loader::load_from_compressed_file_to_memory(_pathname).unwrap();
+            _extracted.into_iter().for_each(|v| {
+               set_page_from_bytes_for_single(&v.value, &_image_container_list, page_index, _drawing_area_ref.allocated_width(), _drawing_area_ref.allocated_height()); 
+            });
+        },
         _ => {
             set_page_from_file_for_single(&file, &_image_container_list, page_index, _drawing_area_ref.allocated_width(), _drawing_area_ref.allocated_height());
         }
