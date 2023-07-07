@@ -6,12 +6,13 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-gdk-pixbuf-sys = "0.17.0"
-gdk4 = "0.6.3"
-gtk4 = "0.6.6"
-gio = "0.17.9"
-glib = "0.17.9"
-gdk-pixbuf = "0.17.0"
+gdk-pixbuf-sys = "0.17"
+gdk4 = "0.6"
+gtk4 = "0.6"
+gio = "0.17"
+glib = "0.17"
+gdk-pixbuf = "0.17"
 libarchive3-sys-by-madosuki = { git = "https://github.com/madosuki/libarchive3-sys-by-madosuki"}
-libarchive_extractor-rs = { git = "https://github.com/madosuki/libarchive_extractor-rs" }
+# libarchive_extractor-rs = { git = "https://github.com/madosuki/libarchive_extractor-rs" }
+libarchive_extractor-rs = { path = "../libarchive-rs-by-madosuki" }
 anyhow = "1.0"

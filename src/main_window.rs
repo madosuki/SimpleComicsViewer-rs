@@ -107,20 +107,26 @@ fn set_page_from_bytes_for_single(bytes: &[u8], _image_container_list: &std::rc:
     _image_container_list.borrow()[page_index].scale(width, height);
 }
 
+fn open_and_set_image_from_zip(file: &gio::File, _image_container_list: &std::rc::Rc<std::cell::RefCell<Vec<ImageContainer>>>, _drawing_area_ref: &DrawingArea) {
+    let Some(_pathbuf) = file.path() else { return; };
+    let Some(_pathname) = _pathbuf.as_path().to_str() else {
+        return;
+    };
+
+    println!("zip file name: {}", _pathname);
+
+    let _extracted = image_loader::load_from_compressed_file_to_memory(_pathname).unwrap();
+    let mut count = 0;
+    _extracted.into_iter().for_each(|v| {
+        set_page_from_bytes_for_single(&v.value, &_image_container_list, count, _drawing_area_ref.allocated_width(), _drawing_area_ref.allocated_height());
+        count = count + 1;
+    });
+}
+
 fn open_and_set_image(file: &gio::File, _image_container_list: &std::rc::Rc<std::cell::RefCell<Vec<ImageContainer>>>, _drawing_area_ref: &DrawingArea, page_index: usize) {
     println!("page index: {}", &page_index);
     match utils::detect_file_type_from_file(&file) {
         utils::FileType::NONE => { return; },
-        utils::FileType::ZIP => {
-            let Some(_pathbuf) = file.path() else { return; };
-            let Some(_pathname) = _pathbuf.as_path().to_str() else {
-                return;
-            };
-            let _extracted = image_loader::load_from_compressed_file_to_memory(_pathname).unwrap();
-            _extracted.into_iter().for_each(|v| {
-               set_page_from_bytes_for_single(&v.value, &_image_container_list, page_index, _drawing_area_ref.allocated_width(), _drawing_area_ref.allocated_height()); 
-            });
-        },
         _ => {
             set_page_from_file_for_single(&file, &_image_container_list, page_index, _drawing_area_ref.allocated_width(), _drawing_area_ref.allocated_height());
         }
@@ -144,25 +150,35 @@ fn create_action_entry_for_menu(_window: &gtk::ApplicationWindow, _image_contain
                         let Some(file) = file_dialog.file() else { return };
                         let Some(_path) = file.path() else { return };
                         if !_path.is_file() { return; }
-                        
-                        let Some(_dir) = _path.parent() else {
-                            _image_container_list.borrow_mut().clear();
-                            open_and_set_image(&file, &_image_container_list, &_drawing_area_ref, 0);
-                            _drawing_area_ref.queue_draw();
-                            return;
-                        };
 
-                        _image_container_list.borrow_mut().clear();
-                        let mut count: usize = 0;
-                        println!("{}", _dir.display());
-                        for entry in _dir.read_dir().expect("read_dir call failed") {
-                            if let Ok(entry) = entry {
-                                if entry.file_type().unwrap().is_file() {
-                                    let tmp_path = entry.path();
-                                    let tmp_file = gio::File::for_path(&tmp_path);
-                                    open_and_set_image(&tmp_file, &_image_container_list, &_drawing_area_ref, count);
-                                    count = count + 1;
-                                    println!("{:?}", entry.path());
+                        let is_zip =
+                            match utils::detect_file_type_from_file(&file) {
+                                utils::FileType::ZIP => true,
+                                _ => false
+                            };
+
+                        if is_zip {
+                            open_and_set_image_from_zip(&file, &_image_container_list, &_drawing_area_ref);
+                        } else {
+                            let Some(_dir) = _path.parent() else {
+                                _image_container_list.borrow_mut().clear();
+                                open_and_set_image(&file, &_image_container_list, &_drawing_area_ref, 0);
+                                _drawing_area_ref.queue_draw();
+                                return;
+                            };
+
+                            _image_container_list.borrow_mut().clear();
+                            let mut count: usize = 0;
+                            println!("{}", _dir.display());
+                            for entry in _dir.read_dir().expect("read_dir call failed") {
+                                if let Ok(entry) = entry {
+                                    if entry.file_type().unwrap().is_file() {
+                                        let tmp_path = entry.path();
+                                        let tmp_file = gio::File::for_path(&tmp_path);
+                                        open_and_set_image(&tmp_file, &_image_container_list, &_drawing_area_ref, count);
+                                        count = count + 1;
+                                        println!("{:?}", entry.path());
+                                    }
                                 }
                             }
                         }
