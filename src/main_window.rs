@@ -21,7 +21,7 @@ struct Page {
 #[derive(Default)]
 struct PagesInfo {
     pages: std::rc::Rc<std::cell::RefCell<Vec<Page>>>,
-    current_page_index: usize,
+    current_page_index: std::rc::Rc<std::cell::RefCell<usize>>,
 }
 
 struct MainWindow {
@@ -112,8 +112,6 @@ fn open_and_set_image_from_zip(file: &gio::File, _image_container_list: &std::rc
     let Some(_pathname) = _pathbuf.as_path().to_str() else {
         return;
     };
-
-    println!("zip file name: {}", _pathname);
 
     let _extracted = image_loader::load_from_compressed_file_to_memory(_pathname).unwrap();
     let mut count = 0;
@@ -225,12 +223,14 @@ impl MainWindow {
         let _window = &self.window;
         let _image_container_list = &self.image_container_list;
         let _pages_info = &self.pages_info;
+        // _pages_info.current_page_index.as_ref().replace(1);
 
         let menu_ui_src = include_str!("menu.ui");
         let builder = gtk::Builder::new();
         let _ = builder.add_from_string(menu_ui_src);
         let _menubar: gio::MenuModel = builder.object("menu").unwrap();
         app.set_menubar(Some(&_menubar));
+
 
         let _drawing_area = gtk::DrawingArea::builder()
             .hexpand_set(true)
@@ -241,7 +241,8 @@ impl MainWindow {
                 return;
             }
 
-            let Some(modified) = _image_container_list.borrow()[_pages_info.current_page_index.clone()].get_modified_pixbuf_data() else { return; };
+            let _index = _pages_info.current_page_index.as_ref().borrow().clone();
+            let Some(modified) = _image_container_list.borrow()[_index].get_modified_pixbuf_data() else { return; };
             let format = if modified.has_alpha() {
                 cairo::Format::ARgb32
             } else {
@@ -262,7 +263,8 @@ impl MainWindow {
 
         let _ = _drawing_area.connect_resize(glib::clone!(@strong _image_container_list, @strong _pages_info => move|_drawing_area: &DrawingArea, width: i32, height: i32| {
             if _image_container_list.borrow().is_empty() { return; }
-            scale_page_for_single(&_image_container_list, _pages_info.current_page_index.clone(), width, height);
+            let _index = _pages_info.current_page_index.as_ref().borrow().clone();
+            scale_page_for_single(&_image_container_list, _index, width, height);
         }));
 
         let _scroll = gtk::ScrolledWindow::builder().child(&_drawing_area).build();
