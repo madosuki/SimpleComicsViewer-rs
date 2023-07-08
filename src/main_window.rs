@@ -2,7 +2,7 @@ use gtk4 as gtk;
 use gdk4 as gdk;
 
 use gtk::prelude::{ApplicationExt, ApplicationWindowExt, GtkApplicationExt, GtkWindowExt, WidgetExt, DialogExt, FileChooserExt, FileChooserExtManual,  MenuModelExt, BoxExt, DrawingAreaExt, DrawingAreaExtManual, SurfaceExt, GdkCairoContextExt, PopoverExt, ActionMapExtManual, FileExt};
-use gtk::{Application, ApplicationWindow, Button, Allocation, DrawingArea, cairo, PopoverMenu, gio, glib};
+use gtk::{Application, ApplicationWindow, Button, Allocation, DrawingArea, cairo, PopoverMenu, gio, glib, EventControllerKey};
 use glib::clone;
 use gdk_pixbuf;
 use gdk_pixbuf::prelude::PixbufLoaderExt;
@@ -13,14 +13,7 @@ use crate::utils;
 use image_container::{ImageContainer, ImageContainerEx};
 
 #[derive(Default)]
-struct Page {
-    x: usize,
-    y: usize
-}
-
-#[derive(Default)]
 struct PagesInfo {
-    pages: std::rc::Rc<std::cell::RefCell<Vec<Page>>>,
     current_page_index: std::rc::Rc<std::cell::RefCell<usize>>,
 }
 
@@ -223,7 +216,6 @@ impl MainWindow {
         let _window = &self.window;
         let _image_container_list = &self.image_container_list;
         let _pages_info = &self.pages_info;
-        // _pages_info.current_page_index.as_ref().replace(1);
 
         let menu_ui_src = include_str!("menu.ui");
         let builder = gtk::Builder::new();
@@ -266,6 +258,64 @@ impl MainWindow {
             let _index = _pages_info.current_page_index.as_ref().borrow().clone();
             scale_page_for_single(&_image_container_list, _index, width, height);
         }));
+
+        // gdk::Key::leftarrow
+        // gdk::Key::rightarrow
+        let _event_controller_key = EventControllerKey::builder().build();
+        // let _ = _event_controller_key.connect_key_pressed(|event_controller_key: &EventControllerKey, keyval: gdk::Key, keycode: u32, state: gdk::ModifierType| {
+        //     let tmp_keyval = keyval.to_upper();
+        //     let tmp =
+        //         match tmp_keyval.name().unwrap().to_lowercase().as_str() {
+        //             "LEFT" => {
+        //                 1
+        //             },
+        //             "RIGHT" => {
+        //               -1  
+        //             },
+        //             _ => 0
+        //         };
+
+        //     gtk::Inhibit(true)
+        // });
+
+        let _ = _event_controller_key.connect_key_pressed(glib::clone!(@strong _image_container_list, @strong _pages_info, @strong _drawing_area => move |event_controller_key: &EventControllerKey, keyval: gdk::Key, keycode: u32, state: gdk::ModifierType| {
+            println!("{}", keyval.name().unwrap().to_uppercase().as_str());
+            let tmp =
+                match keyval.name().unwrap().to_uppercase().as_str() {
+                    "LEFT" => {
+                        1
+                    },
+                    "RIGHT" => {
+                        -1  
+                    },
+                    _ => 0
+                };
+            if tmp == 0 {
+                return gtk::Inhibit(true);
+            }
+
+            if _image_container_list.borrow().is_empty() {
+                return gtk::Inhibit(true);
+            }
+
+            let size = _image_container_list.borrow().len();
+            let _i = _pages_info.current_page_index.borrow().clone();
+            if _i == 0 && tmp == -1 {
+                return gtk::Inhibit(true);
+            }
+            
+            let _result = if tmp == 1 { _i + 1 } else { _i - 1 };
+            println!("_result: {}", _result);
+            if size <= _result {
+                return gtk::Inhibit(true);
+            }
+            
+            _pages_info.current_page_index.replace(_result);
+            _drawing_area.queue_draw();
+            gtk::Inhibit(true)
+        }));
+        self.window.add_controller(_event_controller_key);
+
 
         let _scroll = gtk::ScrolledWindow::builder().child(&_drawing_area).build();
         _scroll.set_hexpand(true);
