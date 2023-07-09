@@ -259,33 +259,24 @@ impl MainWindow {
             scale_page_for_single(&_image_container_list, _index, width, height);
         }));
 
-        // gdk::Key::leftarrow
-        // gdk::Key::rightarrow
         let _event_controller_key = EventControllerKey::builder().build();
         // let _ = _event_controller_key.connect_key_pressed(|event_controller_key: &EventControllerKey, keyval: gdk::Key, keycode: u32, state: gdk::ModifierType| {
-        //     let tmp_keyval = keyval.to_upper();
-        //     let tmp =
-        //         match tmp_keyval.name().unwrap().to_lowercase().as_str() {
-        //             "LEFT" => {
-        //                 1
-        //             },
-        //             "RIGHT" => {
-        //               -1  
-        //             },
-        //             _ => 0
-        //         };
-
+        //     println!("{:?}", gdk::Key::Left.cmp(&keyval));
+        //     match keyval {
+        //         gdk::Key::Left => println!("Left"),
+        //         gdk::Key::Right => println!("Right"),
+        //         _ => println!("unsupport"),
+        //     }
         //     gtk::Inhibit(true)
         // });
 
         let _ = _event_controller_key.connect_key_pressed(glib::clone!(@strong _image_container_list, @strong _pages_info, @strong _drawing_area => move |event_controller_key: &EventControllerKey, keyval: gdk::Key, keycode: u32, state: gdk::ModifierType| {
-            println!("{}", keyval.name().unwrap().to_uppercase().as_str());
             let tmp =
-                match keyval.name().unwrap().to_uppercase().as_str() {
-                    "LEFT" => {
+                match keyval {
+                    gdk::Key::Left => {
                         1
                     },
-                    "RIGHT" => {
+                    gdk::Key::Right => {
                         -1  
                     },
                     _ => 0
@@ -305,7 +296,7 @@ impl MainWindow {
             }
             
             let _result = if tmp == 1 { _i + 1 } else { _i - 1 };
-            println!("_result: {}", _result);
+            // println!("_result: {}", _result);
             if size <= _result {
                 return gtk::Inhibit(true);
             }
