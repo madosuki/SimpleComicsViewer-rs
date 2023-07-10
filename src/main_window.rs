@@ -187,6 +187,28 @@ fn create_action_entry_for_menu(_window: &gtk::ApplicationWindow, _image_contain
     _action_entry
 }
 
+fn draw_single_page(_image_container_list: &Vec<ImageContainer>, _pages_info: &PagesInfo, area: &DrawingArea, ctx: &cairo::Context) {
+    let _index = _pages_info.current_page_index.as_ref().borrow().clone();
+
+    let Some(modified) = _image_container_list[_index].get_modified_pixbuf_data() else { return; };
+    let format = if modified.has_alpha() {
+        cairo::Format::ARgb32
+    } else {
+        cairo::Format::Rgb24
+    };
+    let pix_w = modified.width();
+    let pix_h = modified.height();
+    let Ok(surface) = cairo::ImageSurface::create(format, pix_w, pix_h) else { return; };
+
+    let margin = calc_margin_for_single(&modified, area.allocated_width(), area.allocated_height());
+    let margin_f_for_surface = f64::from(margin.clone());
+    let margin_f_for_pixbuf = f64::from(margin.clone());
+
+    let _ = ctx.set_source_surface(&surface, margin_f_for_surface, 0.0);
+    let _ = ctx.set_source_pixbuf(&modified, margin_f_for_pixbuf, 0.0);
+    let _ = ctx.paint();
+}
+
 impl MainWindow {
     fn new() -> MainWindow {
 
@@ -233,24 +255,7 @@ impl MainWindow {
                 return;
             }
 
-            let _index = _pages_info.current_page_index.as_ref().borrow().clone();
-            let Some(modified) = _image_container_list.borrow()[_index].get_modified_pixbuf_data() else { return; };
-            let format = if modified.has_alpha() {
-                cairo::Format::ARgb32
-            } else {
-                cairo::Format::Rgb24
-            };
-            let pix_w = modified.width();
-            let pix_h = modified.height();
-            let Ok(surface) = cairo::ImageSurface::create(format, pix_w, pix_h) else { return; };
-
-            let margin = calc_margin_for_single(&modified, area.allocated_width(), area.allocated_height());
-            let margin_f_for_surface = f64::from(margin.clone());
-            let margin_f_for_pixbuf = f64::from(margin.clone());
-
-            let _ = ctx.set_source_surface(&surface, margin_f_for_surface, 0.0);
-            let _ = ctx.set_source_pixbuf(&modified, margin_f_for_pixbuf, 0.0);
-            let _ = ctx.paint();
+            draw_single_page(&_image_container_list.borrow(), &_pages_info, area, ctx);
         }));
 
         let _ = _drawing_area.connect_resize(glib::clone!(@strong _image_container_list, @strong _pages_info => move|_drawing_area: &DrawingArea, width: i32, height: i32| {
@@ -296,12 +301,15 @@ impl MainWindow {
             }
             
             let _result = if tmp == 1 { _i + 1 } else { _i - 1 };
-            // println!("_result: {}", _result);
             if size <= _result {
                 return gtk::Inhibit(true);
             }
             
             _pages_info.current_page_index.replace(_result);
+            let _height = _drawing_area.allocated_height();
+            let _width = _drawing_area.allocated_width();
+            scale_page_for_single(&_image_container_list, _result, _width, _height);
+            
             _drawing_area.queue_draw();
             gtk::Inhibit(true)
         }));
