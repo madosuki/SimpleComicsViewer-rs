@@ -49,6 +49,26 @@ fn calc_margin_for_single(pixbuf_data: &gdk_pixbuf::Pixbuf, target_width: i32, t
     }
 }
 
+fn calc_margin_for_dual(_left: &gdk_pixbuf::Pixbuf, _right: &gdk_pixbuf::Pixbuf, target_width: i32, target_height: i32) -> i32 {
+    let left_height = _left.height();
+    let left_width = _left.width();
+    let right_height = _right.height();
+    let right_width = _right.width();
+
+    let diff = target_width - (left_width + right_width);
+
+    if diff < 0 {
+        return -1;
+    }
+
+    if diff == 0 {
+        diff
+    } else {
+        diff / 2
+    }
+}
+
+
 fn scale_page_for_single(image_container_list: &std::rc::Rc<std::cell::RefCell<Vec<ImageContainer>>>, current_page_index: usize, target_width: i32, target_height: i32) {
 
     if (target_width < 1) || (target_height < 1) {
@@ -246,11 +266,11 @@ fn draw_dual_page(_image_container_list: &Vec<ImageContainer>, _pages_info: &Pag
     let Ok(surface_for_right) = cairo::ImageSurface::create(_right_format, pix_w, pix_h) else { return; };
 
     let _right_pos = f64::from(pix_w);
-    let _ = ctx.set_source_surface(&surface_for_right, _right_pos, 0.0);
-    let _ = ctx.set_source_pixbuf(&_right, _right_pos, 0.0);
-    let _ = ctx.paint();
 
     if _left_index >= _image_container_list.len() {
+        let _ = ctx.set_source_surface(&surface_for_right, _right_pos, 0.0);
+        let _ = ctx.set_source_pixbuf(&_right, _right_pos, 0.0);
+        let _ = ctx.paint();
         return;
     }
     
@@ -260,12 +280,30 @@ fn draw_dual_page(_image_container_list: &Vec<ImageContainer>, _pages_info: &Pag
     } else {
         cairo::Format::Rgb24
     };
+
+    let margin = calc_margin_for_dual(&_right, &_left, area.allocated_width(), area.allocated_height()) as f64;
+
+    let _margin_for_right = _right_pos + margin;
+    
+    let _ = ctx.set_source_surface(&surface_for_right, _margin_for_right, 0.0);
+    let _ = ctx.set_source_pixbuf(&_right, _margin_for_right, 0.0);
+    let _ = ctx.paint();
+    
     let Ok(surface_for_left) = cairo::ImageSurface::create(_left_format, _left.width(), _left.height()) else { return; };
-    let _ = ctx.set_source_surface(&surface_for_left, 0.0, 0.0);
-    let _ = ctx.set_source_pixbuf(&_left, 0.0, 0.0);
+    let _ = ctx.set_source_surface(&surface_for_left, margin, 0.0);
+    let _ = ctx.set_source_pixbuf(&_left, margin, 0.0);
     let _ = ctx.paint();
 }
 
+fn fullscreen(_window: &gtk::ApplicationWindow, _image_container_list: &std::rc::Rc<std::cell::RefCell<Vec<ImageContainer>>>, _pages_info: &PagesInfo, _drawing_area_ref: &DrawingArea) {
+    if _window.is_fullscreen() {
+        _window.unfullscreen();
+        _window.set_show_menubar(true);
+    } else {
+        _window.fullscreen();
+        _window.set_show_menubar(false);
+    }
+}
 
 impl MainWindow {
     fn new() -> MainWindow {
@@ -324,13 +362,24 @@ impl MainWindow {
 
         let _ = _drawing_area.connect_resize(glib::clone!(@strong _image_container_list, @strong _pages_info, @strong _settings => move|_drawing_area: &DrawingArea, width: i32, height: i32| {
             if _image_container_list.borrow().is_empty() { return; }
+            // println!("resized! {}, {}", _drawing_area.allocated_width(), _drawing_area.allocated_height());
             let _index = _pages_info.current_page_index.as_ref().borrow().clone();
-            // scale_page_for_single(&_image_container_list, _index, width, height);
-            scale_page_for_dual(&_image_container_list, _index, width, height);
+            if *_settings.is_dual_mode.borrow() {
+                scale_page_for_dual(&_image_container_list, _index, width, height);
+            } else {
+                scale_page_for_single(&_image_container_list, _index, width, height);                
+            }
         }));
 
+
+
         let _event_controller_key = EventControllerKey::builder().build();
-        let _ = _event_controller_key.connect_key_pressed(glib::clone!(@strong _image_container_list, @strong _pages_info, @strong _settings, @strong _drawing_area => move |event_controller_key: &EventControllerKey, keyval: gdk::Key, keycode: u32, state: gdk::ModifierType| {
+        let _ = _event_controller_key.connect_key_pressed(glib::clone!(@strong _window, @strong _image_container_list, @strong _pages_info, @strong _settings, @strong _drawing_area => move |event_controller_key: &EventControllerKey, keyval: gdk::Key, keycode: u32, state: gdk::ModifierType| {
+            if state == gdk::ModifierType::ALT_MASK && keyval == gdk::Key::Return {
+                fullscreen(&_window, &_image_container_list, &_pages_info, &_drawing_area);
+                return gtk::Inhibit(true);
+            }
+
             let is_dual_mode = _settings.is_dual_mode.borrow().clone();
             let tmp: i32 =
                 match keyval {
@@ -376,8 +425,12 @@ impl MainWindow {
             _pages_info.current_page_index.replace(_result);
             let _height = _drawing_area.allocated_height();
             let _width = _drawing_area.allocated_width();
-            // scale_page_for_single(&_image_container_list, _result, _width, _height);
-            scale_page_for_dual(&_image_container_list, _result, _width, _height);
+            if *_settings.is_dual_mode.borrow() {
+                scale_page_for_dual(&_image_container_list, _result, _width, _height);
+            } else {
+                scale_page_for_single(&_image_container_list, _result, _width, _height);
+            }
+
             
             _drawing_area.queue_draw();
             gtk::Inhibit(true)

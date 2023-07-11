@@ -123,13 +123,17 @@ impl ImageContainerEx for ImageContainer {
 
         if is_dual_mode {
             result_height = (tmp_target_width / aspect_ratio.for_width).ceil() as i32;
-            result_width = target_width;
+            if result_height > target_height {
+                result_height = target_height;
+                result_width = (tmp_target_height / aspect_ratio.for_height).ceil() as i32;;
+            } else {
+                result_width = target_width;
+            }
         } else {
             match picture_direction {
                 PictureDirectionType::Vertical => {
                     result_height = target_height;
                     result_width = (tmp_target_height / aspect_ratio.for_height).ceil() as i32;
-                    println!("scaled! {}, {}", result_width, result_height);
                 },
                 PictureDirectionType::Horizontal => {
                     result_width = target_width;
