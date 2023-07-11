@@ -145,17 +145,18 @@ fn open_and_set_image(file: &gio::File, _image_container_list: &std::rc::Rc<std:
 }
 
 
-fn create_action_entry_for_menu(_window: &gtk::ApplicationWindow, _image_container_list: &std::rc::Rc<std::cell::RefCell<Vec<ImageContainer>>>, _drawing_area_ref: &DrawingArea) -> gio::ActionEntry<gtk::Application> {
+fn create_action_entry_for_menu(_window: &gtk::ApplicationWindow,
+                                _image_container_list: &std::rc::Rc<std::cell::RefCell<Vec<ImageContainer>>>,
+                                _pages_info: &std::rc::Rc<PagesInfo>,
+                                _drawing_area_ref: &DrawingArea) -> gio::ActionEntry<gtk::Application> {
         let _action_entry: gio::ActionEntry<gtk::Application> = gio::ActionEntry::builder("file_open")
-            .activate(glib::clone!(@weak _window, @strong _image_container_list, @strong _drawing_area_ref => move |_app: &gtk::Application, _action: &gio::SimpleAction, _user_data: Option<&glib::Variant>| {
-                println!("do action!");
-
+            .activate(glib::clone!(@weak _window, @strong _image_container_list, @strong _pages_info, @strong _drawing_area_ref => move |_app: &gtk::Application, _action: &gio::SimpleAction, _user_data: Option<&glib::Variant>| {
                 let dialog = gtk::FileChooserDialog::new(Some("File Select"),
                                                          Some(&_window),
                                                          gtk::FileChooserAction::Open,
                 &[("Open", gtk::ResponseType::Ok), ("Cancel", gtk::ResponseType::Cancel)]);
 
-                dialog.connect_response(glib::clone!(@strong _image_container_list, @strong _drawing_area_ref => move |file_dialog, response| {
+                dialog.connect_response(glib::clone!(@strong _image_container_list, @strong _pages_info, @strong _drawing_area_ref => move |file_dialog, response| {
                     if response == gtk::ResponseType::Ok {
                         println!("ok");
                         let Some(file) = file_dialog.file() else { return };
@@ -168,17 +169,17 @@ fn create_action_entry_for_menu(_window: &gtk::ApplicationWindow, _image_contain
                                 _ => false
                             };
 
+                        _image_container_list.borrow_mut().clear();
+                        _pages_info.current_page_index.replace(0);
                         if is_zip {
                             open_and_set_image_from_zip(&file, &_image_container_list, &_drawing_area_ref);
                         } else {
                             let Some(_dir) = _path.parent() else {
-                                _image_container_list.borrow_mut().clear();
                                 open_and_set_image(&file, &_image_container_list, &_drawing_area_ref, 0);
                                 _drawing_area_ref.queue_draw();
                                 return;
                             };
 
-                            _image_container_list.borrow_mut().clear();
                             let mut count: usize = 0;
                             println!("{}", _dir.display());
                             for entry in _dir.read_dir().expect("read_dir call failed") {
@@ -390,7 +391,7 @@ impl MainWindow {
         self.v_box.append(&_scroll);
 
         let _drawing_area_ref = &_drawing_area;
-        let _action_entry = create_action_entry_for_menu(_window, _image_container_list, _drawing_area_ref);
+        let _action_entry = create_action_entry_for_menu(_window, _image_container_list, _pages_info, _drawing_area_ref);
         app.add_action_entries(vec!(_action_entry));
         self.window.set_application(Some(app));
 
