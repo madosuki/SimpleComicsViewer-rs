@@ -22,7 +22,6 @@ struct MainWindow {
     window: ApplicationWindow,
     v_box: gtk::Box,
     image_container_list: std::rc::Rc<std::cell::RefCell<Vec<ImageContainer>>>,
-    is_single: std::rc::Rc<bool>,
     pages_info: std::rc::Rc<PagesInfo>,
 }
 
@@ -268,7 +267,6 @@ impl MainWindow {
             window: _win,
             v_box: gtk::Box::new(gtk::Orientation::Vertical, 1),
             image_container_list: std::rc::Rc::new(std::cell::RefCell::new(vec!())),
-            is_single: std::rc::Rc::new(true),
             pages_info: std::rc::Rc::new(PagesInfo::default()),
         };
 
