@@ -3,7 +3,6 @@ use gdk4 as gdk;
 
 use gtk::prelude::{ApplicationExt, ApplicationWindowExt, GtkApplicationExt, GtkWindowExt, WidgetExt, DialogExt, FileChooserExt, FileChooserExtManual,  MenuModelExt, BoxExt, DrawingAreaExt, DrawingAreaExtManual, SurfaceExt, GdkCairoContextExt, PopoverExt, ActionMapExtManual, FileExt};
 use gtk::{Application, ApplicationWindow, Button, Allocation, DrawingArea, cairo, PopoverMenu, gio, glib, EventControllerKey};
-use glib::clone;
 use gdk_pixbuf;
 use gdk_pixbuf::prelude::PixbufLoaderExt;
 
@@ -15,6 +14,12 @@ use image_container::{ImageContainer, ImageContainerEx};
 #[derive(Default)]
 struct PagesInfo {
     current_page_index: std::rc::Rc<std::cell::RefCell<usize>>,
+    loaded_filename: std::rc::Rc<std::cell::RefCell<Option<String>>>,
+    loaded_dirname: std::rc::Rc<std::cell::RefCell<Option<String>>>,
+}
+
+#[derive(Default)]
+struct Settings {
     is_dual_mode: std::rc::Rc<std::cell::RefCell<bool>>,
 }
 
@@ -23,6 +28,7 @@ struct MainWindow {
     v_box: gtk::Box,
     image_container_list: std::rc::Rc<std::cell::RefCell<Vec<ImageContainer>>>,
     pages_info: std::rc::Rc<PagesInfo>,
+    settings: std::rc::Rc<Settings>,
 }
 
 fn calc_margin_for_single(pixbuf_data: &gdk_pixbuf::Pixbuf, target_width: i32, target_height: i32) -> i32 {
@@ -72,13 +78,14 @@ fn scale_page_for_dual(image_container_list: &std::rc::Rc<std::cell::RefCell<Vec
     }
 
     let next_index = current_page_index + 1;
-    if next_index >= image_container_list.borrow().len() {
-        return;
-    }
+    let _image_container_list_len = image_container_list.borrow().len();
 
     let final_target_width = target_width / 2;
     image_container_list.borrow()[current_page_index].scale(final_target_width, target_height, true);
-    image_container_list.borrow()[next_index].scale(final_target_width, target_height, true);
+
+    if next_index != _image_container_list_len {
+        image_container_list.borrow()[next_index].scale(final_target_width, target_height, true);
+    }
 }
 
 
@@ -106,7 +113,9 @@ fn set_page_from_bytes_for_dual(bytes: &[u8], _image_container_list: &std::rc::R
     _image_container_list.borrow_mut().push(_image_container);
     
     _image_container_list.borrow()[page_index].set_pixbuf_from_bytes(bytes, width, height);
-    _image_container_list.borrow()[page_index].scale(width / 2, height, false);
+
+    let half_width = width / 2;
+    _image_container_list.borrow()[page_index].scale(half_width, height, true);
 }
 
 
@@ -220,7 +229,7 @@ fn draw_single_page(_image_container_list: &Vec<ImageContainer>, _pages_info: &P
     let _ = ctx.paint();
 }
 
-fn draw_dual_page(_image_container_list: &Vec<ImageContainer>, _pages_info: &PagesInfo, area: &DrawingArea, ctx: &cairo::Context) {
+fn draw_dual_page(_image_container_list: &Vec<ImageContainer>, _pages_info: &PagesInfo, _settings: &Settings, area: &DrawingArea, ctx: &cairo::Context) {
     let _index = _pages_info.current_page_index.as_ref().borrow().clone();
     let _right_index = _index;
     let _left_index = _index + 1;
@@ -240,6 +249,10 @@ fn draw_dual_page(_image_container_list: &Vec<ImageContainer>, _pages_info: &Pag
     let _ = ctx.set_source_pixbuf(&_right, _right_pos, 0.0);
     let _ = ctx.paint();
 
+    if _left_index >= _image_container_list.len() {
+        return;
+    }
+    
     let _left = _image_container_list[_left_index].get_modified_pixbuf_data().unwrap();
     let _left_format = if _left.has_alpha() {
         cairo::Format::ARgb32
@@ -268,6 +281,7 @@ impl MainWindow {
             v_box: gtk::Box::new(gtk::Orientation::Vertical, 1),
             image_container_list: std::rc::Rc::new(std::cell::RefCell::new(vec!())),
             pages_info: std::rc::Rc::new(PagesInfo::default()),
+            settings: std::rc::Rc::new(Settings::default()),
         };
 
         _result
@@ -281,7 +295,8 @@ impl MainWindow {
         let _window = &self.window;
         let _image_container_list = &self.image_container_list;
         let _pages_info = &self.pages_info;
-        _pages_info.is_dual_mode.replace(true);
+        let _settings = &self.settings;
+        _settings.is_dual_mode.replace(true);
 
         let menu_ui_src = include_str!("menu.ui");
         let builder = gtk::Builder::new();
@@ -294,19 +309,19 @@ impl MainWindow {
             .hexpand_set(true)
             .vexpand_set(true)
             .build();
-        _drawing_area.set_draw_func(glib::clone!(@strong _image_container_list, @strong _pages_info => move |area: &DrawingArea, ctx: &cairo::Context, width: i32, height: i32| {
+        _drawing_area.set_draw_func(glib::clone!(@strong _image_container_list, @strong _pages_info, @strong _settings => move |area: &DrawingArea, ctx: &cairo::Context, width: i32, height: i32| {
             if _image_container_list.borrow().is_empty() {
                 return;
             }
 
-            if *_pages_info.is_dual_mode.borrow() {
-                draw_dual_page(&_image_container_list.borrow(), &_pages_info, area, ctx);
+            if *_settings.is_dual_mode.borrow() {
+                draw_dual_page(&_image_container_list.borrow(), &_pages_info, &_settings, area, ctx);
             } else {
                 draw_single_page(&_image_container_list.borrow(), &_pages_info, area, ctx);
             }
         }));
 
-        let _ = _drawing_area.connect_resize(glib::clone!(@strong _image_container_list, @strong _pages_info => move|_drawing_area: &DrawingArea, width: i32, height: i32| {
+        let _ = _drawing_area.connect_resize(glib::clone!(@strong _image_container_list, @strong _pages_info, @strong _settings => move|_drawing_area: &DrawingArea, width: i32, height: i32| {
             if _image_container_list.borrow().is_empty() { return; }
             let _index = _pages_info.current_page_index.as_ref().borrow().clone();
             // scale_page_for_single(&_image_container_list, _index, width, height);
@@ -314,8 +329,8 @@ impl MainWindow {
         }));
 
         let _event_controller_key = EventControllerKey::builder().build();
-        let _ = _event_controller_key.connect_key_pressed(glib::clone!(@strong _image_container_list, @strong _pages_info, @strong _drawing_area => move |event_controller_key: &EventControllerKey, keyval: gdk::Key, keycode: u32, state: gdk::ModifierType| {
-            let is_dual_mode = _pages_info.is_dual_mode.borrow().clone();
+        let _ = _event_controller_key.connect_key_pressed(glib::clone!(@strong _image_container_list, @strong _pages_info, @strong _settings, @strong _drawing_area => move |event_controller_key: &EventControllerKey, keyval: gdk::Key, keycode: u32, state: gdk::ModifierType| {
+            let is_dual_mode = _settings.is_dual_mode.borrow().clone();
             let tmp: i32 =
                 match keyval {
                     gdk::Key::Left => {
@@ -348,9 +363,13 @@ impl MainWindow {
                 return gtk::Inhibit(true);
             }
 
-            let _result = if tmp > -1 { _i + (tmp as usize) } else { _i - (tmp.abs() as usize) };
+            let mut _result = if tmp > -1 { _i + (tmp as usize) } else { _i - (tmp.abs() as usize) };
             if size <= _result {
                 return gtk::Inhibit(true);
+            }
+
+            if _result >= size {
+                _result = size - 1;
             }
             
             _pages_info.current_page_index.replace(_result);
