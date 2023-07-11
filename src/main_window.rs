@@ -15,6 +15,7 @@ use image_container::{ImageContainer, ImageContainerEx};
 #[derive(Default)]
 struct PagesInfo {
     current_page_index: std::rc::Rc<std::cell::RefCell<usize>>,
+    is_dual_mode: std::rc::Rc<std::cell::RefCell<bool>>,
 }
 
 struct MainWindow {
@@ -58,7 +59,7 @@ fn scale_page_for_single(image_container_list: &std::rc::Rc<std::cell::RefCell<V
     }
 
     
-    image_container_list.borrow()[current_page_index].scale(target_width, target_height);
+    image_container_list.borrow()[current_page_index].scale(target_width, target_height, false);
 }
 
 fn scale_page_for_dual(image_container_list: &std::rc::Rc<std::cell::RefCell<Vec<ImageContainer>>>, current_page_index: usize, target_width: i32, target_height: i32) {
@@ -77,8 +78,8 @@ fn scale_page_for_dual(image_container_list: &std::rc::Rc<std::cell::RefCell<Vec
     }
 
     let final_target_width = target_width / 2;
-    image_container_list.borrow()[current_page_index].scale(final_target_width, target_height);
-    image_container_list.borrow()[next_index].scale(final_target_width, target_height);
+    image_container_list.borrow()[current_page_index].scale(final_target_width, target_height, true);
+    image_container_list.borrow()[next_index].scale(final_target_width, target_height, true);
 }
 
 
@@ -88,7 +89,7 @@ fn set_page_from_file_for_single(file: &gio::File, _image_container_list: &std::
     _image_container_list.borrow_mut().push(_image_container);
 
     _image_container_list.borrow()[page_index].set_pixbuf_from_file(file, width, height);
-    _image_container_list.borrow()[page_index].scale(width, height);
+    _image_container_list.borrow()[page_index].scale(width, height, false);
 }
 
 fn set_page_from_bytes_for_single(bytes: &[u8], _image_container_list: &std::rc::Rc<std::cell::RefCell<Vec<ImageContainer>>>, page_index: usize, width: i32, height: i32) {
@@ -97,8 +98,18 @@ fn set_page_from_bytes_for_single(bytes: &[u8], _image_container_list: &std::rc:
     _image_container_list.borrow_mut().push(_image_container);
     
     _image_container_list.borrow()[page_index].set_pixbuf_from_bytes(bytes, width, height);
-    _image_container_list.borrow()[page_index].scale(width, height);
+    _image_container_list.borrow()[page_index].scale(width, height, false);
 }
+
+fn set_page_from_bytes_for_dual(bytes: &[u8], _image_container_list: &std::rc::Rc<std::cell::RefCell<Vec<ImageContainer>>>, page_index: usize, width: i32, height: i32) {
+    let _image_container = ImageContainer::default();
+
+    _image_container_list.borrow_mut().push(_image_container);
+    
+    _image_container_list.borrow()[page_index].set_pixbuf_from_bytes(bytes, width, height);
+    _image_container_list.borrow()[page_index].scale(width / 2, height, false);
+}
+
 
 fn open_and_set_image_from_zip(file: &gio::File, _image_container_list: &std::rc::Rc<std::cell::RefCell<Vec<ImageContainer>>>, _drawing_area_ref: &DrawingArea) {
     let Some(_pathbuf) = file.path() else { return; };
@@ -109,7 +120,8 @@ fn open_and_set_image_from_zip(file: &gio::File, _image_container_list: &std::rc
     let _extracted = image_loader::load_from_compressed_file_to_memory(_pathname).unwrap();
     let mut count = 0;
     _extracted.into_iter().for_each(|v| {
-        set_page_from_bytes_for_single(&v.value, &_image_container_list, count, _drawing_area_ref.allocated_width(), _drawing_area_ref.allocated_height());
+        // set_page_from_bytes_for_single(&v.value, &_image_container_list, count, _drawing_area_ref.allocated_width(), _drawing_area_ref.allocated_height());
+        set_page_from_bytes_for_dual(&v.value, &_image_container_list, count, _drawing_area_ref.allocated_width(), _drawing_area_ref.allocated_height());
         count = count + 1;
     });
 }
@@ -173,7 +185,7 @@ fn create_action_entry_for_menu(_window: &gtk::ApplicationWindow, _image_contain
                                 }
                             }
                         }
-                        println!("drawing area allocated height: {}", _drawing_area_ref.allocated_height());
+                        // println!("drawing area allocated height: {}", _drawing_area_ref.allocated_height());
                         _drawing_area_ref.queue_draw();
 
                     }
@@ -209,6 +221,39 @@ fn draw_single_page(_image_container_list: &Vec<ImageContainer>, _pages_info: &P
     let _ = ctx.paint();
 }
 
+fn draw_dual_page(_image_container_list: &Vec<ImageContainer>, _pages_info: &PagesInfo, area: &DrawingArea, ctx: &cairo::Context) {
+    let _index = _pages_info.current_page_index.as_ref().borrow().clone();
+    let _right_index = _index;
+    let _left_index = _index + 1;
+
+    let Some(_right) = _image_container_list[_right_index].get_modified_pixbuf_data() else { return; };
+    let _right_format = if _right.has_alpha() {
+        cairo::Format::ARgb32
+    } else {
+        cairo::Format::Rgb24
+    };
+    let pix_w = _right.width();
+    let pix_h = _right.height();
+    let Ok(surface_for_right) = cairo::ImageSurface::create(_right_format, pix_w, pix_h) else { return; };
+
+    let _right_pos = f64::from(pix_w);
+    let _ = ctx.set_source_surface(&surface_for_right, _right_pos, 0.0);
+    let _ = ctx.set_source_pixbuf(&_right, _right_pos, 0.0);
+    let _ = ctx.paint();
+
+    let _left = _image_container_list[_left_index].get_modified_pixbuf_data().unwrap();
+    let _left_format = if _left.has_alpha() {
+        cairo::Format::ARgb32
+    } else {
+        cairo::Format::Rgb24
+    };
+    let Ok(surface_for_left) = cairo::ImageSurface::create(_left_format, _left.width(), _left.height()) else { return; };
+    let _ = ctx.set_source_surface(&surface_for_left, 0.0, 0.0);
+    let _ = ctx.set_source_pixbuf(&_left, 0.0, 0.0);
+    let _ = ctx.paint();
+}
+
+
 impl MainWindow {
     fn new() -> MainWindow {
 
@@ -238,6 +283,7 @@ impl MainWindow {
         let _window = &self.window;
         let _image_container_list = &self.image_container_list;
         let _pages_info = &self.pages_info;
+        _pages_info.is_dual_mode.replace(true);
 
         let menu_ui_src = include_str!("menu.ui");
         let builder = gtk::Builder::new();
@@ -255,34 +301,38 @@ impl MainWindow {
                 return;
             }
 
-            draw_single_page(&_image_container_list.borrow(), &_pages_info, area, ctx);
+            if *_pages_info.is_dual_mode.borrow() {
+                draw_dual_page(&_image_container_list.borrow(), &_pages_info, area, ctx);
+            } else {
+                draw_single_page(&_image_container_list.borrow(), &_pages_info, area, ctx);
+            }
         }));
 
         let _ = _drawing_area.connect_resize(glib::clone!(@strong _image_container_list, @strong _pages_info => move|_drawing_area: &DrawingArea, width: i32, height: i32| {
             if _image_container_list.borrow().is_empty() { return; }
             let _index = _pages_info.current_page_index.as_ref().borrow().clone();
-            scale_page_for_single(&_image_container_list, _index, width, height);
+            // scale_page_for_single(&_image_container_list, _index, width, height);
+            scale_page_for_dual(&_image_container_list, _index, width, height);
         }));
 
         let _event_controller_key = EventControllerKey::builder().build();
-        // let _ = _event_controller_key.connect_key_pressed(|event_controller_key: &EventControllerKey, keyval: gdk::Key, keycode: u32, state: gdk::ModifierType| {
-        //     println!("{:?}", gdk::Key::Left.cmp(&keyval));
-        //     match keyval {
-        //         gdk::Key::Left => println!("Left"),
-        //         gdk::Key::Right => println!("Right"),
-        //         _ => println!("unsupport"),
-        //     }
-        //     gtk::Inhibit(true)
-        // });
-
         let _ = _event_controller_key.connect_key_pressed(glib::clone!(@strong _image_container_list, @strong _pages_info, @strong _drawing_area => move |event_controller_key: &EventControllerKey, keyval: gdk::Key, keycode: u32, state: gdk::ModifierType| {
-            let tmp =
+            let is_dual_mode = _pages_info.is_dual_mode.borrow().clone();
+            let tmp: i32 =
                 match keyval {
                     gdk::Key::Left => {
-                        1
+                        if is_dual_mode {
+                            2
+                        } else {
+                            1
+                        }
                     },
                     gdk::Key::Right => {
-                        -1  
+                        if is_dual_mode {
+                            -2
+                        } else {
+                            -1
+                        }
                     },
                     _ => 0
                 };
@@ -296,11 +346,11 @@ impl MainWindow {
 
             let size = _image_container_list.borrow().len();
             let _i = _pages_info.current_page_index.borrow().clone();
-            if _i == 0 && tmp == -1 {
+            if _i == 0 && tmp < 0 {
                 return gtk::Inhibit(true);
             }
-            
-            let _result = if tmp == 1 { _i + 1 } else { _i - 1 };
+
+            let _result = if tmp > -1 { _i + (tmp as usize) } else { _i - (tmp.abs() as usize) };
             if size <= _result {
                 return gtk::Inhibit(true);
             }
@@ -308,7 +358,8 @@ impl MainWindow {
             _pages_info.current_page_index.replace(_result);
             let _height = _drawing_area.allocated_height();
             let _width = _drawing_area.allocated_width();
-            scale_page_for_single(&_image_container_list, _result, _width, _height);
+            // scale_page_for_single(&_image_container_list, _result, _width, _height);
+            scale_page_for_dual(&_image_container_list, _result, _width, _height);
             
             _drawing_area.queue_draw();
             gtk::Inhibit(true)

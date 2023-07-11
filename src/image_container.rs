@@ -39,7 +39,7 @@ pub trait ImageContainerEx {
     fn get_modified_height(&self) -> Option<i32>;
     fn get_orig_width(&self) -> Option<i32>;
     fn get_orig_height(&self) -> Option<i32>;
-    fn scale(&self, target_width: i32, target_height: i32);
+    fn scale(&self, target_width: i32, target_height: i32, is_dual_mode: bool);
 }
 
 
@@ -96,7 +96,7 @@ impl ImageContainerEx for ImageContainer {
         })
     }
 
-    fn scale(&self, target_width: i32, target_height: i32) {
+    fn scale(&self, target_width: i32, target_height: i32, is_dual_mode: bool) {
         if target_width < 1 || target_height < 1 {
             return;
         }
@@ -121,19 +121,24 @@ impl ImageContainerEx for ImageContainer {
         let mut result_height: i32 = 0;
         let mut result_width: i32 = 0;
 
-        match picture_direction {
-            PictureDirectionType::Vertical => {
-                result_height = target_height;
-                result_width = (tmp_target_height / aspect_ratio.for_height).ceil() as i32;
-                println!("scaled! {}, {}", result_width, result_height);
-            },
-            PictureDirectionType::Horizontal => {
-                result_width = target_width;
-                result_height = (tmp_target_width / aspect_ratio.for_width).ceil() as i32;
-            },
-            PictureDirectionType::Square => {
-                result_height = target_height;
-                result_width = (tmp_target_height / aspect_ratio.for_height).ceil() as i32;
+        if is_dual_mode {
+            result_height = (tmp_target_width / aspect_ratio.for_width).ceil() as i32;
+            result_width = target_width;
+        } else {
+            match picture_direction {
+                PictureDirectionType::Vertical => {
+                    result_height = target_height;
+                    result_width = (tmp_target_height / aspect_ratio.for_height).ceil() as i32;
+                    println!("scaled! {}, {}", result_width, result_height);
+                },
+                PictureDirectionType::Horizontal => {
+                    result_width = target_width;
+                    result_height = (tmp_target_width / aspect_ratio.for_width).ceil() as i32;
+                },
+                PictureDirectionType::Square => {
+                    result_height = target_height;
+                    result_width = (tmp_target_height / aspect_ratio.for_height).ceil() as i32;
+                }
             }
         }
 
