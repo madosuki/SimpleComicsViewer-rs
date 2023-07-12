@@ -31,11 +31,11 @@ struct MainWindow {
     settings: std::rc::Rc<Settings>,
 }
 
-fn calc_margin_for_single(pixbuf_data: &gdk_pixbuf::Pixbuf, target_width: i32, target_height: i32) -> i32 {
-    let pic_height = pixbuf_data.height();
-    let pic_width = pixbuf_data.width();
+fn calc_margin_for_single(pixbuf_data: &gdk_pixbuf::Pixbuf, _target_width: i32, _target_height: i32) -> i32 {
+    let _pic_height = pixbuf_data.height();
+    let _pic_width = pixbuf_data.width();
 
-    let diff = target_width - pic_width;
+    let diff = _target_width - _pic_width;
 
 
     if diff < 0 {
@@ -49,13 +49,13 @@ fn calc_margin_for_single(pixbuf_data: &gdk_pixbuf::Pixbuf, target_width: i32, t
     }
 }
 
-fn calc_margin_for_dual(_left: &gdk_pixbuf::Pixbuf, _right: &gdk_pixbuf::Pixbuf, target_width: i32, target_height: i32) -> i32 {
-    let left_height = _left.height();
-    let left_width = _left.width();
-    let right_height = _right.height();
-    let right_width = _right.width();
+fn calc_margin_for_dual(_left: &gdk_pixbuf::Pixbuf, _right: &gdk_pixbuf::Pixbuf, _target_width: i32, _target_height: i32) -> i32 {
+    let _left_height = _left.height();
+    let _left_width = _left.width();
+    let _right_height = _right.height();
+    let _right_width = _right.width();
 
-    let diff = target_width - (left_width + right_width);
+    let diff = _target_width - (_left_width + _right_width);
 
     if diff < 0 {
         return -1;
@@ -69,9 +69,9 @@ fn calc_margin_for_dual(_left: &gdk_pixbuf::Pixbuf, _right: &gdk_pixbuf::Pixbuf,
 }
 
 
-fn scale_page_for_single(image_container_list: &std::rc::Rc<std::cell::RefCell<Vec<ImageContainer>>>, current_page_index: usize, target_width: i32, target_height: i32) {
+fn scale_page_for_single(image_container_list: &std::rc::Rc<std::cell::RefCell<Vec<ImageContainer>>>, current_page_index: usize, _target_width: i32, _target_height: i32) {
 
-    if (target_width < 1) || (target_height < 1) {
+    if (_target_width < 1) || (_target_height < 1) {
         return;
     }
     
@@ -84,12 +84,12 @@ fn scale_page_for_single(image_container_list: &std::rc::Rc<std::cell::RefCell<V
     }
 
     
-    image_container_list.borrow()[current_page_index].scale(target_width, target_height, false);
+    image_container_list.borrow()[current_page_index].scale(_target_width, _target_height, false);
 }
 
-fn scale_page_for_dual(image_container_list: &std::rc::Rc<std::cell::RefCell<Vec<ImageContainer>>>, current_page_index: usize, target_width: i32, target_height: i32) {
+fn scale_page_for_dual(image_container_list: &std::rc::Rc<std::cell::RefCell<Vec<ImageContainer>>>, current_page_index: usize, _target_width: i32, _target_height: i32) {
 
-    if (target_width < 1) || (target_height < 1) {
+    if (_target_width < 1) || (_target_height < 1) {
         return;
     }
     
@@ -100,11 +100,11 @@ fn scale_page_for_dual(image_container_list: &std::rc::Rc<std::cell::RefCell<Vec
     let next_index = current_page_index + 1;
     let _image_container_list_len = image_container_list.borrow().len();
 
-    let final_target_width = target_width / 2;
-    image_container_list.borrow()[current_page_index].scale(final_target_width, target_height, true);
+    let final_target_width = _target_width / 2;
+    image_container_list.borrow()[current_page_index].scale(final_target_width, _target_height, true);
 
     if next_index != _image_container_list_len {
-        image_container_list.borrow()[next_index].scale(final_target_width, target_height, true);
+        image_container_list.borrow()[next_index].scale(final_target_width, _target_height, true);
     }
 }
 
@@ -385,7 +385,7 @@ impl MainWindow {
             .hexpand_set(true)
             .vexpand_set(true)
             .build();
-        _drawing_area.set_draw_func(glib::clone!(@strong _image_container_list, @strong _pages_info, @strong _settings => move |area: &DrawingArea, ctx: &cairo::Context, width: i32, height: i32| {
+        _drawing_area.set_draw_func(glib::clone!(@strong _image_container_list, @strong _pages_info, @strong _settings => move |area: &DrawingArea, ctx: &cairo::Context, _width: i32, _height: i32| {
             if _image_container_list.borrow().is_empty() {
                 return;
             }
@@ -397,21 +397,21 @@ impl MainWindow {
             }
         }));
 
-        let _ = _drawing_area.connect_resize(glib::clone!(@strong _image_container_list, @strong _pages_info, @strong _settings => move|_drawing_area: &DrawingArea, width: i32, height: i32| {
+        let _ = _drawing_area.connect_resize(glib::clone!(@strong _image_container_list, @strong _pages_info, @strong _settings => move|_drawing_area: &DrawingArea, _width: i32, _height: i32| {
             if _image_container_list.borrow().is_empty() { return; }
             // println!("resized! {}, {}", _drawing_area.allocated_width(), _drawing_area.allocated_height());
             let _index = _pages_info.current_page_index.as_ref().borrow().clone();
             if *_settings.is_dual_mode.borrow() {
-                scale_page_for_dual(&_image_container_list, _index, width, height);
+                scale_page_for_dual(&_image_container_list, _index, _width, _height);
             } else {
-                scale_page_for_single(&_image_container_list, _index, width, height);                
+                scale_page_for_single(&_image_container_list, _index, _width, _height);                
             }
         }));
 
 
 
         let _event_controller_key = EventControllerKey::builder().build();
-        let _ = _event_controller_key.connect_key_pressed(glib::clone!(@strong _window, @strong _image_container_list, @strong _pages_info, @strong _settings, @strong _drawing_area => move |event_controller_key: &EventControllerKey, keyval: gdk::Key, keycode: u32, state: gdk::ModifierType| {
+        let _ = _event_controller_key.connect_key_pressed(glib::clone!(@strong _window, @strong _image_container_list, @strong _pages_info, @strong _settings, @strong _drawing_area => move |_event_controller_key: &EventControllerKey, keyval: gdk::Key, _keycode: u32, state: gdk::ModifierType| {
             
             if state == gdk::ModifierType::ALT_MASK && keyval == gdk::Key::Return {
                 fullscreen(&_window, &_image_container_list, &_pages_info, &_drawing_area);

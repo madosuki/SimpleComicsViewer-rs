@@ -50,7 +50,7 @@ pub fn detect_file_type_from_bytes(bytes: &[u8]) -> FileType {
 }
 
 pub fn detect_file_type_from_file(file: &gio::File) -> FileType {
-    let Ok((bytes, s)) = file.load_bytes(gio::Cancellable::NONE) else {
+    let Ok((bytes, _s)) = file.load_bytes(gio::Cancellable::NONE) else {
         return FileType::NONE
     };
 

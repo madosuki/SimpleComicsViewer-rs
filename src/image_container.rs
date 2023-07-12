@@ -1,6 +1,5 @@
 use std::fs::File;
 use std::io::Read;
-use std::cell::Cell;
 use std::cell::RefCell;
 
 use gtk4 as gtk;
@@ -8,8 +7,6 @@ use gtk4 as gtk;
 use gtk::prelude::{WidgetExt, FileExt};
 use gdk_pixbuf;
 use gdk_pixbuf::prelude::PixbufLoaderExt;
-
-use libarchive_extractor_rs;
 
 use crate::utils;
 
@@ -32,8 +29,8 @@ pub struct AspectRatioCollection {
 }
 
 pub trait ImageContainerEx {
-    fn set_pixbuf_from_file(&self, file: &gio::File, window_width: i32, window_height: i32);
-    fn set_pixbuf_from_bytes(&self, bytes: &[u8], window_width: i32, window_height: i32);
+    fn set_pixbuf_from_file(&self, file: &gio::File, _window_width: i32, _window_height: i32);
+    fn set_pixbuf_from_bytes(&self, bytes: &[u8], _window_width: i32, _window_height: i32);
     fn get_modified_pixbuf_data(&self) -> Option<gdk_pixbuf::Pixbuf>;
     fn get_modified_width(&self) -> Option<i32>;
     fn get_modified_height(&self) -> Option<i32>;
@@ -52,7 +49,7 @@ impl ImageContainerEx for ImageContainer {
         Some(v)
     }
 
-    fn set_pixbuf_from_file(&self, file: &gio::File, window_width: i32, window_height: i32) {
+    fn set_pixbuf_from_file(&self, file: &gio::File, _window_width: i32, _window_height: i32) {
         let Some(pixbuf_data) = create_pixbuf_from_file(file) else { return };
 
         let _ = self.modified_pixbuf_data.replace_with(|_| Some(pixbuf_data.clone()));
@@ -60,7 +57,7 @@ impl ImageContainerEx for ImageContainer {
         let _ = self.orig_pixbuf_data.replace_with(|_| Some(pixbuf_data.clone()));
     }
 
-    fn set_pixbuf_from_bytes(&self, bytes: &[u8], window_width: i32, window_height: i32) {
+    fn set_pixbuf_from_bytes(&self, bytes: &[u8], _window_width: i32, _window_height: i32) {
         let Some(pixbuf_data) = create_pixbuf_from_bytes(bytes) else {
             return;
         };
@@ -118,35 +115,35 @@ impl ImageContainerEx for ImageContainer {
         let tmp_target_height = target_height as f64;
 
         let aspect_ratio = calc_aspect_raito(width, height);
-        let mut result_height: i32 = 0;
-        let mut result_width: i32 = 0;
+        let mut _result_height: i32 = 0;
+        let mut _result_width: i32 = 0;
 
         if is_dual_mode {
-            result_height = (tmp_target_width / aspect_ratio.for_width).ceil() as i32;
-            if result_height > target_height {
-                result_height = target_height;
-                result_width = (tmp_target_height / aspect_ratio.for_height).ceil() as i32;;
+            _result_height = (tmp_target_width / aspect_ratio.for_width).ceil() as i32;
+            if _result_height > target_height {
+                _result_height = target_height;
+                _result_width = (tmp_target_height / aspect_ratio.for_height).ceil() as i32;
             } else {
-                result_width = target_width;
+                _result_width = target_width;
             }
         } else {
             match picture_direction {
                 PictureDirectionType::Vertical => {
-                    result_height = target_height;
-                    result_width = (tmp_target_height / aspect_ratio.for_height).ceil() as i32;
+                    _result_height = target_height;
+                    _result_width = (tmp_target_height / aspect_ratio.for_height).ceil() as i32;
                 },
                 PictureDirectionType::Horizontal => {
-                    result_width = target_width;
-                    result_height = (tmp_target_width / aspect_ratio.for_width).ceil() as i32;
+                    _result_width = target_width;
+                    _result_height = (tmp_target_width / aspect_ratio.for_width).ceil() as i32;
                 },
                 PictureDirectionType::Square => {
-                    result_height = target_height;
-                    result_width = (tmp_target_height / aspect_ratio.for_height).ceil() as i32;
+                    _result_height = target_height;
+                    _result_width = (tmp_target_height / aspect_ratio.for_height).ceil() as i32;
                 }
             }
         }
 
-        let Some(scaled) = pixbuf_data.scale_simple(result_width, result_height, gdk_pixbuf::InterpType::Bilinear) else { return };
+        let Some(scaled) = pixbuf_data.scale_simple(_result_width, _result_height, gdk_pixbuf::InterpType::Bilinear) else { return };
         let _ = self.modified_pixbuf_data.replace_with(|_| Some(scaled.clone()));
     }
 }
@@ -199,7 +196,7 @@ pub fn create_pixbuf_from_file_path(path_str: String) -> Option<gdk_pixbuf::Pixb
 }
 
 pub fn create_pixbuf_from_file(file: &gio::File) -> Option<gdk_pixbuf::Pixbuf> {
-    let Ok((bytes, s)) = file.load_bytes(gio::Cancellable::NONE) else {
+    let Ok((bytes, _s)) = file.load_bytes(gio::Cancellable::NONE) else {
         return None
     };
 
