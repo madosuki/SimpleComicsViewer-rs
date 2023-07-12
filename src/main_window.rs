@@ -31,6 +31,13 @@ struct MainWindow {
     settings: std::rc::Rc<Settings>,
 }
 
+fn update_window_title(_window: &gtk::ApplicationWindow, _msg: &str) {
+    let Some(_title) = _window.title() else { return; };
+
+    let _new_title = format!("Simple Comics Viewer: {}", _msg);
+    _window.set_title(Some(&_new_title));
+}
+
 fn calc_margin_for_single(pixbuf_data: &gdk_pixbuf::Pixbuf, _target_width: i32, _target_height: i32) -> i32 {
     let _pic_height = pixbuf_data.height();
     let _pic_width = pixbuf_data.width();
@@ -154,7 +161,7 @@ fn open_and_set_image_from_zip(file: &gio::File,
     };
     let Some(_file_name) = _file_name_osstr.to_str() else { return; };
     _pages_info.loaded_filename.replace(Some(_file_name.to_owned()));
-    _window.set_title(Some(_file_name));
+    update_window_title(_window, _file_name);
 
     let _extracted = image_loader::load_from_compressed_file_to_memory(_pathname).unwrap();
 
