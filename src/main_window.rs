@@ -125,40 +125,45 @@ fn set_page_from_file(file: &gio::File, _image_container_list: &std::rc::Rc<std:
 
 }
 
-fn set_page_from_bytes_for_single(bytes: &[u8], _image_container_list: &std::rc::Rc<std::cell::RefCell<Vec<ImageContainer>>>, page_index: usize, width: i32, height: i32) {
+fn set_page_from_bytes(bytes: &[u8], _image_container_list: &std::rc::Rc<std::cell::RefCell<Vec<ImageContainer>>>, page_index: usize, width: i32, height: i32, is_dual_mode: bool) {
     let _image_container = ImageContainer::default();
 
     _image_container_list.borrow_mut().push(_image_container);
     
     _image_container_list.borrow()[page_index].set_pixbuf_from_bytes(bytes, width, height);
-    _image_container_list.borrow()[page_index].scale(width, height, false);
+    if is_dual_mode {
+        let half_width = width / 2;
+        _image_container_list.borrow()[page_index].scale(half_width, height, true);
+    } else {
+        _image_container_list.borrow()[page_index].scale(width, height, false);
+    }
 }
 
-fn set_page_from_bytes_for_dual(bytes: &[u8], _image_container_list: &std::rc::Rc<std::cell::RefCell<Vec<ImageContainer>>>, page_index: usize, width: i32, height: i32) {
-    let _image_container = ImageContainer::default();
-
-    _image_container_list.borrow_mut().push(_image_container);
-    
-    _image_container_list.borrow()[page_index].set_pixbuf_from_bytes(bytes, width, height);
-
-    let half_width = width / 2;
-    _image_container_list.borrow()[page_index].scale(half_width, height, true);
-}
-
-
-fn open_and_set_image_from_zip(file: &gio::File, _image_container_list: &std::rc::Rc<std::cell::RefCell<Vec<ImageContainer>>>, _drawing_area_ref: &DrawingArea, _settings: &Settings) {
+fn open_and_set_image_from_zip(file: &gio::File,
+                               _image_container_list: &std::rc::Rc<std::cell::RefCell<Vec<ImageContainer>>>,
+                               _drawing_area_ref: &DrawingArea,
+                               _settings: &Settings,
+                               _pages_info: &std::rc::Rc<PagesInfo>,
+                               _window: &gtk::ApplicationWindow) {
     let Some(_pathbuf) = file.path() else { return; };
     let Some(_pathname) = _pathbuf.as_path().to_str() else {
         return;
     };
+    let Some(_file_name_osstr) = _pathbuf.file_name() else {
+        return;
+    };
+    let Some(_file_name) = _file_name_osstr.to_str() else { return; };
+    _pages_info.loaded_filename.replace(Some(_file_name.to_owned()));
+    _window.set_title(Some(_file_name));
 
     let _extracted = image_loader::load_from_compressed_file_to_memory(_pathname).unwrap();
+
     let mut count = 0;
     _extracted.into_iter().for_each(|v| {
         if *_settings.is_dual_mode.borrow() {
-            set_page_from_bytes_for_dual(&v.value, &_image_container_list, count, _drawing_area_ref.allocated_width(), _drawing_area_ref.allocated_height());
+            set_page_from_bytes(&v.value, &_image_container_list, count, _drawing_area_ref.allocated_width(), _drawing_area_ref.allocated_height(), _settings.is_dual_mode.borrow().clone());
         } else {
-            set_page_from_bytes_for_single(&v.value, &_image_container_list, count, _drawing_area_ref.allocated_width(), _drawing_area_ref.allocated_height());
+            set_page_from_bytes(&v.value, &_image_container_list, count, _drawing_area_ref.allocated_width(), _drawing_area_ref.allocated_height(), _settings.is_dual_mode.borrow().clone());
         }
 
         count = count + 1;
@@ -203,7 +208,7 @@ fn create_action_entry_for_menu(_window: &gtk::ApplicationWindow,
                         _image_container_list.borrow_mut().clear();
                         _pages_info.current_page_index.replace(0);
                         if is_zip {
-                            open_and_set_image_from_zip(&file, &_image_container_list, &_drawing_area_ref, &_settings);
+                            open_and_set_image_from_zip(&file, &_image_container_list, &_drawing_area_ref, &_settings, &_pages_info, &_window);
                         } else {
                             let Some(_dir) = _path.parent() else {
                                 open_and_set_image(&file, &_image_container_list, &_drawing_area_ref, 0, &_settings);

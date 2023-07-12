@@ -20,6 +20,7 @@ enum PictureDirectionType {
 pub struct ImageContainer {
     modified_pixbuf_data: RefCell<Option<gdk_pixbuf::Pixbuf>>,
     orig_pixbuf_data: RefCell<Option<gdk_pixbuf::Pixbuf>>,
+    file_name: RefCell<Option<String>>,
 }
 
 #[derive(Default)]
