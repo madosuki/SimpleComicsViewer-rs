@@ -110,12 +110,19 @@ fn scale_page_for_dual(image_container_list: &std::rc::Rc<std::cell::RefCell<Vec
 
 
 
-fn set_page_from_file_for_single(file: &gio::File, _image_container_list: &std::rc::Rc<std::cell::RefCell<Vec<ImageContainer>>>, page_index: usize, width: i32, height: i32) {
+fn set_page_from_file(file: &gio::File, _image_container_list: &std::rc::Rc<std::cell::RefCell<Vec<ImageContainer>>>, page_index: usize, width: i32, height: i32, is_dual_mode: bool) {
     let _image_container = ImageContainer::default();
     _image_container_list.borrow_mut().push(_image_container);
 
     _image_container_list.borrow()[page_index].set_pixbuf_from_file(file, width, height);
-    _image_container_list.borrow()[page_index].scale(width, height, false);
+
+    if is_dual_mode {
+        let half_width = width / 2;
+        _image_container_list.borrow()[page_index].scale(half_width, height, is_dual_mode);
+    } else {
+        _image_container_list.borrow()[page_index].scale(width, height, is_dual_mode);
+    }
+
 }
 
 fn set_page_from_bytes_for_single(bytes: &[u8], _image_container_list: &std::rc::Rc<std::cell::RefCell<Vec<ImageContainer>>>, page_index: usize, width: i32, height: i32) {
@@ -139,7 +146,7 @@ fn set_page_from_bytes_for_dual(bytes: &[u8], _image_container_list: &std::rc::R
 }
 
 
-fn open_and_set_image_from_zip(file: &gio::File, _image_container_list: &std::rc::Rc<std::cell::RefCell<Vec<ImageContainer>>>, _drawing_area_ref: &DrawingArea) {
+fn open_and_set_image_from_zip(file: &gio::File, _image_container_list: &std::rc::Rc<std::cell::RefCell<Vec<ImageContainer>>>, _drawing_area_ref: &DrawingArea, _settings: &Settings) {
     let Some(_pathbuf) = file.path() else { return; };
     let Some(_pathname) = _pathbuf.as_path().to_str() else {
         return;
@@ -148,18 +155,21 @@ fn open_and_set_image_from_zip(file: &gio::File, _image_container_list: &std::rc
     let _extracted = image_loader::load_from_compressed_file_to_memory(_pathname).unwrap();
     let mut count = 0;
     _extracted.into_iter().for_each(|v| {
-        // set_page_from_bytes_for_single(&v.value, &_image_container_list, count, _drawing_area_ref.allocated_width(), _drawing_area_ref.allocated_height());
-        set_page_from_bytes_for_dual(&v.value, &_image_container_list, count, _drawing_area_ref.allocated_width(), _drawing_area_ref.allocated_height());
+        if *_settings.is_dual_mode.borrow() {
+            set_page_from_bytes_for_dual(&v.value, &_image_container_list, count, _drawing_area_ref.allocated_width(), _drawing_area_ref.allocated_height());
+        } else {
+            set_page_from_bytes_for_single(&v.value, &_image_container_list, count, _drawing_area_ref.allocated_width(), _drawing_area_ref.allocated_height());
+        }
+
         count = count + 1;
     });
 }
 
-fn open_and_set_image(file: &gio::File, _image_container_list: &std::rc::Rc<std::cell::RefCell<Vec<ImageContainer>>>, _drawing_area_ref: &DrawingArea, page_index: usize) {
-    println!("page index: {}", &page_index);
+fn open_and_set_image(file: &gio::File, _image_container_list: &std::rc::Rc<std::cell::RefCell<Vec<ImageContainer>>>, _drawing_area_ref: &DrawingArea, page_index: usize, _settings: &Settings) {
     match utils::detect_file_type_from_file(&file) {
         utils::FileType::NONE => { return; },
         _ => {
-            set_page_from_file_for_single(&file, &_image_container_list, page_index, _drawing_area_ref.allocated_width(), _drawing_area_ref.allocated_height());
+            set_page_from_file(&file, &_image_container_list, page_index, _drawing_area_ref.allocated_width(), _drawing_area_ref.allocated_height(), *_settings.is_dual_mode.borrow());
         }
     };
 }
@@ -168,15 +178,16 @@ fn open_and_set_image(file: &gio::File, _image_container_list: &std::rc::Rc<std:
 fn create_action_entry_for_menu(_window: &gtk::ApplicationWindow,
                                 _image_container_list: &std::rc::Rc<std::cell::RefCell<Vec<ImageContainer>>>,
                                 _pages_info: &std::rc::Rc<PagesInfo>,
-                                _drawing_area_ref: &DrawingArea) -> gio::ActionEntry<gtk::Application> {
+                                _drawing_area_ref: &DrawingArea,
+                                _settings: &std::rc::Rc<Settings>) -> gio::ActionEntry<gtk::Application> {
         let _action_entry: gio::ActionEntry<gtk::Application> = gio::ActionEntry::builder("file_open")
-            .activate(glib::clone!(@weak _window, @strong _image_container_list, @strong _pages_info, @strong _drawing_area_ref => move |_app: &gtk::Application, _action: &gio::SimpleAction, _user_data: Option<&glib::Variant>| {
+            .activate(glib::clone!(@weak _window, @strong _image_container_list, @strong _pages_info, @strong _settings, @strong _drawing_area_ref => move |_app: &gtk::Application, _action: &gio::SimpleAction, _user_data: Option<&glib::Variant>| {
                 let dialog = gtk::FileChooserDialog::new(Some("File Select"),
                                                          Some(&_window),
                                                          gtk::FileChooserAction::Open,
                 &[("Open", gtk::ResponseType::Ok), ("Cancel", gtk::ResponseType::Cancel)]);
 
-                dialog.connect_response(glib::clone!(@strong _image_container_list, @strong _pages_info, @strong _drawing_area_ref => move |file_dialog, response| {
+                dialog.connect_response(glib::clone!(@strong _image_container_list, @strong _pages_info, @strong _drawing_area_ref, @strong _settings => move |file_dialog, response| {
                     if response == gtk::ResponseType::Ok {
                         println!("ok");
                         let Some(file) = file_dialog.file() else { return };
@@ -192,29 +203,26 @@ fn create_action_entry_for_menu(_window: &gtk::ApplicationWindow,
                         _image_container_list.borrow_mut().clear();
                         _pages_info.current_page_index.replace(0);
                         if is_zip {
-                            open_and_set_image_from_zip(&file, &_image_container_list, &_drawing_area_ref);
+                            open_and_set_image_from_zip(&file, &_image_container_list, &_drawing_area_ref, &_settings);
                         } else {
                             let Some(_dir) = _path.parent() else {
-                                open_and_set_image(&file, &_image_container_list, &_drawing_area_ref, 0);
+                                open_and_set_image(&file, &_image_container_list, &_drawing_area_ref, 0, &_settings);
                                 _drawing_area_ref.queue_draw();
                                 return;
                             };
 
                             let mut count: usize = 0;
-                            println!("{}", _dir.display());
                             for entry in _dir.read_dir().expect("read_dir call failed") {
                                 if let Ok(entry) = entry {
                                     if entry.file_type().unwrap().is_file() {
                                         let tmp_path = entry.path();
                                         let tmp_file = gio::File::for_path(&tmp_path);
-                                        open_and_set_image(&tmp_file, &_image_container_list, &_drawing_area_ref, count);
+                                        open_and_set_image(&tmp_file, &_image_container_list, &_drawing_area_ref, count, &_settings);
                                         count = count + 1;
-                                        println!("{:?}", entry.path());
                                     }
                                 }
                             }
                         }
-                        // println!("drawing area allocated height: {}", _drawing_area_ref.allocated_height());
                         _drawing_area_ref.queue_draw();
 
                     }
@@ -274,7 +282,12 @@ fn draw_dual_page(_image_container_list: &Vec<ImageContainer>, _pages_info: &Pag
         return;
     }
     
-    let _left = _image_container_list[_left_index].get_modified_pixbuf_data().unwrap();
+    let Some(_left) = _image_container_list[_left_index].get_modified_pixbuf_data() else {
+        let _ = ctx.set_source_surface(&surface_for_right, _right_pos, 0.0);
+        let _ = ctx.set_source_pixbuf(&_right, _right_pos, 0.0);
+        let _ = ctx.paint();
+        return;
+    };
     let _left_format = if _left.has_alpha() {
         cairo::Format::ARgb32
     } else {
@@ -447,7 +460,7 @@ impl MainWindow {
         self.v_box.append(&_scroll);
 
         let _drawing_area_ref = &_drawing_area;
-        let _action_entry = create_action_entry_for_menu(_window, _image_container_list, _pages_info, _drawing_area_ref);
+        let _action_entry = create_action_entry_for_menu(_window, _image_container_list, _pages_info, _drawing_area_ref, _settings);
         app.add_action_entries(vec!(_action_entry));
         self.window.set_application(Some(app));
 
