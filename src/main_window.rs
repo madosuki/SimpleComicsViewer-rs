@@ -305,6 +305,43 @@ fn fullscreen(_window: &gtk::ApplicationWindow, _image_container_list: &std::rc:
     }
 }
 
+fn move_page(n: i32,
+             _settings: &Settings,
+             _drawing_area: &DrawingArea,
+             _image_container_list: &std::rc::Rc<std::cell::RefCell<Vec<ImageContainer>>>,
+             _pages_info: &std::rc::Rc<PagesInfo>) {
+
+    if n == 0 || _image_container_list.borrow().is_empty() {
+        return;
+    }
+
+    let size = _image_container_list.borrow().len();
+    let _i = _pages_info.current_page_index.borrow().clone();
+    if _i == 0 && n < 0 {
+        return;
+    }
+
+    let mut _result = if n > -1 { _i + (n as usize) } else { _i - (n.abs() as usize) };
+    if size <= _result {
+        return;
+    }
+
+    if _result >= size {
+        _result = size - 1;
+    }
+            
+    _pages_info.current_page_index.replace(_result);
+    let _height = _drawing_area.allocated_height();
+    let _width = _drawing_area.allocated_width();
+    if *_settings.is_dual_mode.borrow() {
+        scale_page_for_dual(&_image_container_list, _result, _width, _height);
+    } else {
+        scale_page_for_single(&_image_container_list, _result, _width, _height);
+    }
+            
+    _drawing_area.queue_draw();
+}
+
 impl MainWindow {
     fn new() -> MainWindow {
 
@@ -375,65 +412,31 @@ impl MainWindow {
 
         let _event_controller_key = EventControllerKey::builder().build();
         let _ = _event_controller_key.connect_key_pressed(glib::clone!(@strong _window, @strong _image_container_list, @strong _pages_info, @strong _settings, @strong _drawing_area => move |event_controller_key: &EventControllerKey, keyval: gdk::Key, keycode: u32, state: gdk::ModifierType| {
+            
             if state == gdk::ModifierType::ALT_MASK && keyval == gdk::Key::Return {
                 fullscreen(&_window, &_image_container_list, &_pages_info, &_drawing_area);
                 return gtk::Inhibit(true);
             }
 
-            let is_dual_mode = _settings.is_dual_mode.borrow().clone();
-            let tmp: i32 =
-                match keyval {
-                    gdk::Key::Left => {
-                        if is_dual_mode {
-                            2
-                        } else {
-                            1
-                        }
-                    },
-                    gdk::Key::Right => {
-                        if is_dual_mode {
-                            -2
-                        } else {
-                            -1
-                        }
-                    },
-                    _ => 0
-                };
-            if tmp == 0 {
-                return gtk::Inhibit(true);
+            match keyval {
+                gdk::Key::Left => {
+                    if *_settings.is_dual_mode.borrow() {
+                        move_page(2, &_settings, &_drawing_area, &_image_container_list, &_pages_info);
+                    } else {
+                        move_page(1, &_settings, &_drawing_area, &_image_container_list, &_pages_info);
+                    }
+                    gtk::Inhibit(true)
+                },
+                gdk::Key::Right => {
+                    if *_settings.is_dual_mode.borrow() {
+                        move_page(-2, &_settings, &_drawing_area, &_image_container_list, &_pages_info);
+                    } else {
+                        move_page(-1, &_settings, &_drawing_area, &_image_container_list, &_pages_info);
+                    }
+                    gtk::Inhibit(true)
+                },
+                _ => gtk::Inhibit(true)
             }
-
-            if _image_container_list.borrow().is_empty() {
-                return gtk::Inhibit(true);
-            }
-
-            let size = _image_container_list.borrow().len();
-            let _i = _pages_info.current_page_index.borrow().clone();
-            if _i == 0 && tmp < 0 {
-                return gtk::Inhibit(true);
-            }
-
-            let mut _result = if tmp > -1 { _i + (tmp as usize) } else { _i - (tmp.abs() as usize) };
-            if size <= _result {
-                return gtk::Inhibit(true);
-            }
-
-            if _result >= size {
-                _result = size - 1;
-            }
-            
-            _pages_info.current_page_index.replace(_result);
-            let _height = _drawing_area.allocated_height();
-            let _width = _drawing_area.allocated_width();
-            if *_settings.is_dual_mode.borrow() {
-                scale_page_for_dual(&_image_container_list, _result, _width, _height);
-            } else {
-                scale_page_for_single(&_image_container_list, _result, _width, _height);
-            }
-
-            
-            _drawing_area.queue_draw();
-            gtk::Inhibit(true)
         }));
         self.window.add_controller(_event_controller_key);
 
