@@ -231,6 +231,7 @@ fn open_file_action(_window: &gtk::ApplicationWindow, _image_container_list: &st
 
                 let Some(_dir_str) = _dir.to_str() else { return; };
                 update_window_title(&_window, _dir_str);
+                _pages_info.loaded_dirname.replace(Some(_dir_str.to_owned()));
 
                 let mut count: usize = 0;
                 for entry in _dir.read_dir().expect("read_dir call failed") {
