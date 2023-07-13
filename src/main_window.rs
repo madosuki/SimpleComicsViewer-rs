@@ -177,15 +177,81 @@ fn open_and_set_image_from_zip(file: &gio::File,
     });
 }
 
-fn open_and_set_image(file: &gio::File, _image_container_list: &std::rc::Rc<std::cell::RefCell<Vec<ImageContainer>>>, _drawing_area_ref: &DrawingArea, page_index: usize, _settings: &Settings) {
+fn open_and_set_image(file: &gio::File,
+                      _image_container_list: &std::rc::Rc<std::cell::RefCell<Vec<ImageContainer>>>,
+                      _drawing_area_ref: &DrawingArea,
+                      page_index: usize,
+                      _settings: &Settings,
+                      is_one: bool,
+                      _window: &gtk::ApplicationWindow) {
     match utils::detect_file_type_from_file(&file) {
-        utils::FileType::NONE => { return; },
+        utils::FileType::NONE => (),
         _ => {
+            if is_one {
+                let Some(_path) = file.path() else { return; };
+                let Some(_file_name) = _path.file_name() else { return; };
+                let Some(_file_name_str) = _file_name.to_str() else { return; };
+                update_window_title(_window, _file_name_str);
+            }
+            
             set_page_from_file(&file, &_image_container_list, page_index, _drawing_area_ref.allocated_width(), _drawing_area_ref.allocated_height(), *_settings.is_dual_mode.borrow());
         }
-    };
+    }
 }
 
+fn open_file_action(_window: &gtk::ApplicationWindow, _image_container_list: &std::rc::Rc<std::cell::RefCell<Vec<ImageContainer>>>, _drawing_area_ref: &DrawingArea, _settings: &std::rc::Rc<Settings>, _pages_info: &std::rc::Rc<PagesInfo>) {
+    let dialog = gtk::FileChooserDialog::new(Some("File Select"),
+                                             Some(_window),
+                                             gtk::FileChooserAction::Open,
+                                             &[("Open", gtk::ResponseType::Ok), ("Cancel", gtk::ResponseType::Cancel)]);
+    
+
+    dialog.connect_response(glib::clone!(@weak _window, @strong _image_container_list, @strong _pages_info, @strong _drawing_area_ref, @strong _settings => move |file_dialog, response| {
+        if response == gtk::ResponseType::Ok {
+            let Some(file) = file_dialog.file() else { return };
+            let Some(_path) = file.path() else { return };
+            if !_path.is_file() { return; }
+
+            let is_zip =
+                match utils::detect_file_type_from_file(&file) {
+                    utils::FileType::ZIP => true,
+                    _ => false
+                };
+
+            _image_container_list.borrow_mut().clear();
+            _pages_info.current_page_index.replace(0);
+            if is_zip {
+                open_and_set_image_from_zip(&file, &_image_container_list, &_drawing_area_ref, &_settings, &_pages_info, &_window);
+            } else {
+                let Some(_dir) = _path.parent() else {
+                    open_and_set_image(&file, &_image_container_list, &_drawing_area_ref, 0, &_settings, true, &_window);
+                    _drawing_area_ref.queue_draw();
+                    return;
+                };
+
+                let Some(_dir_str) = _dir.to_str() else { return; };
+                update_window_title(&_window, _dir_str);
+
+                let mut count: usize = 0;
+                for entry in _dir.read_dir().expect("read_dir call failed") {
+                    if let Ok(entry) = entry {
+                        if entry.file_type().unwrap().is_file() {
+                            let tmp_path = entry.path();
+                            let tmp_file = gio::File::for_path(&tmp_path);
+                            open_and_set_image(&tmp_file, &_image_container_list, &_drawing_area_ref, count, &_settings, false, &_window);
+                            count = count + 1;
+                        }
+                    }
+                }
+            }
+            _drawing_area_ref.queue_draw();
+            
+        }
+        file_dialog.close();
+    }));
+            
+    dialog.show();
+}
 
 fn create_action_entry_for_menu(_window: &gtk::ApplicationWindow,
                                 _image_container_list: &std::rc::Rc<std::cell::RefCell<Vec<ImageContainer>>>,
@@ -193,56 +259,9 @@ fn create_action_entry_for_menu(_window: &gtk::ApplicationWindow,
                                 _drawing_area_ref: &DrawingArea,
                                 _settings: &std::rc::Rc<Settings>) -> gio::ActionEntry<gtk::Application> {
         let _action_entry: gio::ActionEntry<gtk::Application> = gio::ActionEntry::builder("file_open")
-            .activate(glib::clone!(@weak _window, @strong _image_container_list, @strong _pages_info, @strong _settings, @strong _drawing_area_ref => move |_app: &gtk::Application, _action: &gio::SimpleAction, _user_data: Option<&glib::Variant>| {
-                let dialog = gtk::FileChooserDialog::new(Some("File Select"),
-                                                         Some(&_window),
-                                                         gtk::FileChooserAction::Open,
-                &[("Open", gtk::ResponseType::Ok), ("Cancel", gtk::ResponseType::Cancel)]);
-
-                dialog.connect_response(glib::clone!(@strong _image_container_list, @strong _pages_info, @strong _drawing_area_ref, @strong _settings => move |file_dialog, response| {
-                    if response == gtk::ResponseType::Ok {
-                        println!("ok");
-                        let Some(file) = file_dialog.file() else { return };
-                        let Some(_path) = file.path() else { return };
-                        if !_path.is_file() { return; }
-
-                        let is_zip =
-                            match utils::detect_file_type_from_file(&file) {
-                                utils::FileType::ZIP => true,
-                                _ => false
-                            };
-
-                        _image_container_list.borrow_mut().clear();
-                        _pages_info.current_page_index.replace(0);
-                        if is_zip {
-                            open_and_set_image_from_zip(&file, &_image_container_list, &_drawing_area_ref, &_settings, &_pages_info, &_window);
-                        } else {
-                            let Some(_dir) = _path.parent() else {
-                                open_and_set_image(&file, &_image_container_list, &_drawing_area_ref, 0, &_settings);
-                                _drawing_area_ref.queue_draw();
-                                return;
-                            };
-
-                            let mut count: usize = 0;
-                            for entry in _dir.read_dir().expect("read_dir call failed") {
-                                if let Ok(entry) = entry {
-                                    if entry.file_type().unwrap().is_file() {
-                                        let tmp_path = entry.path();
-                                        let tmp_file = gio::File::for_path(&tmp_path);
-                                        open_and_set_image(&tmp_file, &_image_container_list, &_drawing_area_ref, count, &_settings);
-                                        count = count + 1;
-                                    }
-                                }
-                            }
-                        }
-                        _drawing_area_ref.queue_draw();
-
-                    }
-                    file_dialog.close();
-                }));
-            
-                dialog.show();
-            }))
+        .activate(glib::clone!(@weak _window, @strong _image_container_list, @strong _pages_info, @strong _settings, @strong _drawing_area_ref => move |_app: &gtk::Application, _action: &gio::SimpleAction, _user_data: Option<&glib::Variant>| {
+            open_file_action(&_window, &_image_container_list, &_drawing_area_ref, &_settings, &_pages_info);
+        }))
         .build();
 
     _action_entry
@@ -436,10 +455,15 @@ impl MainWindow {
 
 
         let _event_controller_key = EventControllerKey::builder().build();
-        let _ = _event_controller_key.connect_key_pressed(glib::clone!(@strong _window, @strong _image_container_list, @strong _pages_info, @strong _settings, @strong _drawing_area => move |_event_controller_key: &EventControllerKey, keyval: gdk::Key, _keycode: u32, state: gdk::ModifierType| {
+        let _ = _event_controller_key.connect_key_pressed(glib::clone!(@strong _window, @strong _image_container_list, @strong _pages_info, @strong _settings, @strong _drawing_area, @strong _pages_info => move |_event_controller_key: &EventControllerKey, keyval: gdk::Key, _keycode: u32, state: gdk::ModifierType| {
             
             if state == gdk::ModifierType::ALT_MASK && keyval == gdk::Key::Return {
                 fullscreen(&_window, &_image_container_list, &_pages_info, &_drawing_area);
+                return gtk::Inhibit(true);
+            }
+
+            if state == gdk::ModifierType::CONTROL_MASK && keyval == gdk::Key::o {
+                open_file_action(&_window, &_image_container_list, &_drawing_area, &_settings, &_pages_info);
                 return gtk::Inhibit(true);
             }
 
