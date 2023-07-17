@@ -69,7 +69,7 @@ fn calc_margin_for_dual(_left: &gdk_pixbuf::Pixbuf, _right: &gdk_pixbuf::Pixbuf,
     }
 
     if diff == 0 {
-        diff
+        0
     } else {
         diff / 2
     }
@@ -294,6 +294,7 @@ fn draw_dual_page(_image_container_list: &Vec<ImageContainer>, _pages_info: &Pag
     let _index = _pages_info.current_page_index.as_ref().borrow().clone();
     let _right_index = _index;
     let _left_index = _index + 1;
+    let half_area_width = area.allocated_width() / 2;
 
     let Some(_right) = _image_container_list[_right_index].get_modified_pixbuf_data() else { return; };
     let _right_format = if _right.has_alpha() {
@@ -305,7 +306,12 @@ fn draw_dual_page(_image_container_list: &Vec<ImageContainer>, _pages_info: &Pag
     let pix_h = _right.height();
     let Ok(surface_for_right) = cairo::ImageSurface::create(_right_format, pix_w, pix_h) else { return; };
 
-    let _right_pos = f64::from(pix_w);
+    let _right_pos =
+        if pix_w <= half_area_width {
+            f64::from((half_area_width - pix_w) + pix_w)
+        } else {
+            0.0
+        };
 
     if _left_index >= _image_container_list.len() {
         let _ = ctx.set_source_surface(&surface_for_right, _right_pos, 0.0);
@@ -327,16 +333,28 @@ fn draw_dual_page(_image_container_list: &Vec<ImageContainer>, _pages_info: &Pag
     };
 
     let margin = calc_margin_for_dual(&_right, &_left, area.allocated_width(), area.allocated_height()) as f64;
+    let _left_pic_width = _left.width();
+    let _margin_for_left =
+        if _left_pic_width > half_area_width || _left_pic_width == half_area_width{
+            0.0
+        } else {
+            margin
+        };
 
-    let _margin_for_right = _right_pos + margin;
-    
+    let _margin_for_right =
+        if _left_pic_width > half_area_width {
+            _margin_for_left + f64::from(_left_pic_width)
+        } else {
+            margin + f64::from(_left_pic_width)
+        };
+
     let _ = ctx.set_source_surface(&surface_for_right, _margin_for_right, 0.0);
     let _ = ctx.set_source_pixbuf(&_right, _margin_for_right, 0.0);
     let _ = ctx.paint();
-    
+
     let Ok(surface_for_left) = cairo::ImageSurface::create(_left_format, _left.width(), _left.height()) else { return; };
-    let _ = ctx.set_source_surface(&surface_for_left, margin, 0.0);
-    let _ = ctx.set_source_pixbuf(&_left, margin, 0.0);
+    let _ = ctx.set_source_surface(&surface_for_left, _margin_for_left, 0.0);
+    let _ = ctx.set_source_pixbuf(&_left, _margin_for_left, 0.0);
     let _ = ctx.paint();
 }
 

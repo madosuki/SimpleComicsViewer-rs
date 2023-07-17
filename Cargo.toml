@@ -13,6 +13,5 @@ gio = "0.17"
 glib = "0.17"
 gdk-pixbuf = "0.17"
 libarchive3-sys-by-madosuki = { git = "https://github.com/madosuki/libarchive3-sys-by-madosuki"}
-# libarchive_extractor-rs = { git = "https://github.com/madosuki/libarchive_extractor-rs" }
-libarchive_extractor-rs = { path = "../libarchive-rs-by-madosuki" }
+libarchive_extractor-rs = { git = "https://github.com/madosuki/libarchive_extractor-rs" }
 anyhow = "1.0"

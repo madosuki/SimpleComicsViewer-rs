@@ -21,6 +21,7 @@ pub struct ImageContainer {
     modified_pixbuf_data: RefCell<Option<gdk_pixbuf::Pixbuf>>,
     orig_pixbuf_data: RefCell<Option<gdk_pixbuf::Pixbuf>>,
     file_name: RefCell<Option<String>>,
+    left_margin: RefCell<Option<f64>>,
 }
 
 #[derive(Default)]
@@ -37,6 +38,7 @@ pub trait ImageContainerEx {
     fn get_modified_height(&self) -> Option<i32>;
     fn get_orig_width(&self) -> Option<i32>;
     fn get_orig_height(&self) -> Option<i32>;
+    fn get_left_margin(&self) -> Option<f64>;
     fn scale(&self, target_width: i32, target_height: i32, is_dual_mode: bool);
 }
 
@@ -85,13 +87,19 @@ impl ImageContainerEx for ImageContainer {
         utils::get_value_with_option_from_ref_cell_option(&self.orig_pixbuf_data, |x| {
             x.width()
         })
-
     }
 
     fn get_orig_height(&self) -> Option<i32> {
         utils::get_value_with_option_from_ref_cell_option(&self.orig_pixbuf_data, |x| {
             x.height()
         })
+    }
+
+    fn get_left_margin(&self) -> Option<f64> {
+        match *self.left_margin.borrow() {
+            Some(v) => Some(v.clone()),
+            None => None
+        }
     }
 
     fn scale(&self, target_width: i32, target_height: i32, is_dual_mode: bool) {
@@ -104,13 +112,14 @@ impl ImageContainerEx for ImageContainer {
         let width = pixbuf_data.width() as f64;
         let height = pixbuf_data.height() as f64;
 
-        let mut picture_direction: PictureDirectionType = PictureDirectionType::Square;
-        if width < height {
-            picture_direction = PictureDirectionType::Vertical;
-        }
-        if height < width {
-            picture_direction = PictureDirectionType::Horizontal;
-        }
+        let picture_direction: PictureDirectionType = 
+            if width < height {
+                PictureDirectionType::Vertical
+            } else if height < width {
+                PictureDirectionType::Horizontal
+            } else {
+                PictureDirectionType::Square
+            };
 
         let tmp_target_width = target_width as f64;
         let tmp_target_height = target_height as f64;
@@ -143,6 +152,10 @@ impl ImageContainerEx for ImageContainer {
                 }
             }
         }
+
+        let _left_margin = f64::from(target_width - _result_width);
+        self.left_margin.replace(Some(_left_margin));
+        println!("result width: {}, result height: {}", _result_width, _result_height);
 
         let Some(scaled) = pixbuf_data.scale_simple(_result_width, _result_height, gdk_pixbuf::InterpType::Bilinear) else { return };
         let _ = self.modified_pixbuf_data.replace_with(|_| Some(scaled.clone()));
