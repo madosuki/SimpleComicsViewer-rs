@@ -12,8 +12,9 @@ pub fn load_from_compressed_file_to_memory(pathname: &str) -> Result<Vec<Decompr
     let result: Vec<DecompressedData> = archive.extract_to_memory(pathname)?
         .into_iter().flat_map(|v| {
             match utils::detect_file_type_from_bytes(&v.value) {
-                utils::FileType::NONE => None,
-                _ => Some(v)
+                utils::FileType::PNG => Some(v),
+                utils::FileType::JPG => Some(v),
+                _ => None
             }
         }).collect();
     
