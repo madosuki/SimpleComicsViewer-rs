@@ -7,7 +7,6 @@ use crate::utils;
 
 pub fn load_from_compressed_file_to_memory(pathname: &str) -> Result<Vec<DecompressedData>> {
     let archive = libarchive_extractor_rs::Archive::new()?;
-    archive.init()?;
 
     let result: Vec<DecompressedData> = archive.extract_to_memory(pathname)?
         .into_iter().flat_map(|v| {
@@ -17,8 +16,6 @@ pub fn load_from_compressed_file_to_memory(pathname: &str) -> Result<Vec<Decompr
                 _ => None
             }
         }).collect();
-    
-    archive.read_close_and_free()?;
     
     Ok(result)
 }
