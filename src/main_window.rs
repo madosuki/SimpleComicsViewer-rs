@@ -23,6 +23,20 @@ struct Settings {
     is_dual_mode: std::rc::Rc<std::cell::RefCell<bool>>,
 }
 
+#[derive(Default)]
+struct MarginData {
+    _left_margin: i32,
+    _top_margin: i32,
+}
+
+#[derive(Default)]
+struct MarginDataForDual {
+    _left_margin: i32,
+    _top_margin_for_left: i32,
+    _top_margin_for_right: i32,
+}
+
+
 struct MainWindow {
     window: ApplicationWindow,
     v_box: gtk::Box,
@@ -38,40 +52,66 @@ fn update_window_title(_window: &gtk::ApplicationWindow, _msg: &str) {
     _window.set_title(Some(&_new_title));
 }
 
-fn calc_margin_for_single(pixbuf_data: &gdk_pixbuf::Pixbuf, _target_width: i32, _target_height: i32) -> i32 {
+fn calc_margin_for_single(pixbuf_data: &gdk_pixbuf::Pixbuf, _target_width: i32, _target_height: i32) -> MarginData {
     let _pic_height = pixbuf_data.height();
     let _pic_width = pixbuf_data.width();
 
-    let diff = _target_width - _pic_width;
+    let _width_diff = _target_width - _pic_width;
+    let _left_margin =
+        if _width_diff < 0  || _width_diff == 0 {
+            0
+        } else {
+            _width_diff / 2
+        };
 
+    let _height_diff = _target_height - _pic_height;
+    let _top_margin =
+        if _height_diff < 0 || _height_diff == 0 {
+            0
+        } else {
+            _height_diff / 2
+        };
 
-    if diff < 0 {
-        return -1;
-    }
-
-    if diff == 0 {
-        diff
-    } else {
-        diff / 2
+    MarginData {
+        _left_margin,
+        _top_margin
     }
 }
 
-fn calc_margin_for_dual(_left: &gdk_pixbuf::Pixbuf, _right: &gdk_pixbuf::Pixbuf, _target_width: i32, _target_height: i32) -> i32 {
+fn calc_margin_for_dual(_left: &gdk_pixbuf::Pixbuf, _right: &gdk_pixbuf::Pixbuf, _target_width: i32, _target_height: i32) -> MarginDataForDual {
     let _left_height = _left.height();
     let _left_width = _left.width();
     let _right_height = _right.height();
     let _right_width = _right.width();
 
-    let diff = _target_width - (_left_width + _right_width);
+    let _width_diff = _target_width - (_left_width + _right_width);
+    let _left_margin =
+        if _width_diff <= 0 {
+            0
+        } else {
+            _width_diff / 2
+        };
 
-    if diff < 0 {
-        return -1;
-    }
+    let _left_height_diff = _target_height - _left_height;
+    let _top_margin_for_left =
+        if _left_height_diff <= 0 {
+            0
+        } else {
+            _left_height_diff / 2
+        };
 
-    if diff == 0 {
-        0
-    } else {
-        diff / 2
+    let _right_height_diff = _target_height - _right_height;
+    let _top_margin_for_right =
+        if _right_height_diff <= 0 {
+            0
+        } else {
+            _right_height_diff / 2
+        };
+
+    MarginDataForDual {
+        _left_margin,
+        _top_margin_for_left,
+        _top_margin_for_right,
     }
 }
 
@@ -282,11 +322,11 @@ fn draw_single_page(_image_container_list: &Vec<ImageContainer>, _pages_info: &P
     let Ok(surface) = cairo::ImageSurface::create(format, pix_w, pix_h) else { return; };
 
     let margin = calc_margin_for_single(&modified, area.allocated_width(), area.allocated_height());
-    let margin_f_for_surface = f64::from(margin.clone());
-    let margin_f_for_pixbuf = f64::from(margin.clone());
+    let _left_margin = f64::from(margin._left_margin);
+    let _top_margin = f64::from(margin._top_margin);
 
-    let _ = ctx.set_source_surface(&surface, margin_f_for_surface, 0.0);
-    let _ = ctx.set_source_pixbuf(&modified, margin_f_for_pixbuf, 0.0);
+    let _ = ctx.set_source_surface(&surface, _left_margin, _top_margin);
+    let _ = ctx.set_source_pixbuf(&modified, _left_margin, _top_margin);
     let _ = ctx.paint();
 }
 
@@ -332,29 +372,33 @@ fn draw_dual_page(_image_container_list: &Vec<ImageContainer>, _pages_info: &Pag
         cairo::Format::Rgb24
     };
 
-    let margin = calc_margin_for_dual(&_right, &_left, area.allocated_width(), area.allocated_height()) as f64;
+    let margin = calc_margin_for_dual(&_left, &_right, area.allocated_width(), area.allocated_height());
+    let _left_margin = f64::from(margin._left_margin);
+    let _top_margin_for_left = f64::from(margin._top_margin_for_left);
+    let _top_margin_for_right = f64::from(margin._top_margin_for_right);
+    
     let _left_pic_width = _left.width();
-    let _margin_for_left =
+    let _final_left_margin =
         if _left_pic_width > half_area_width || _left_pic_width == half_area_width{
             0.0
         } else {
-            margin
+            _left_margin
         };
 
-    let _margin_for_right =
+    let _right_margin =
         if _left_pic_width > half_area_width {
-            _margin_for_left + f64::from(_left_pic_width)
+            _final_left_margin + f64::from(_left_pic_width)
         } else {
-            margin + f64::from(_left_pic_width)
+            _left_margin + f64::from(_left_pic_width)
         };
 
-    let _ = ctx.set_source_surface(&surface_for_right, _margin_for_right, 0.0);
-    let _ = ctx.set_source_pixbuf(&_right, _margin_for_right, 0.0);
+    let _ = ctx.set_source_surface(&surface_for_right, _right_margin, _top_margin_for_right);
+    let _ = ctx.set_source_pixbuf(&_right, _right_margin, _top_margin_for_right);
     let _ = ctx.paint();
 
     let Ok(surface_for_left) = cairo::ImageSurface::create(_left_format, _left.width(), _left.height()) else { return; };
-    let _ = ctx.set_source_surface(&surface_for_left, _margin_for_left, 0.0);
-    let _ = ctx.set_source_pixbuf(&_left, _margin_for_left, 0.0);
+    let _ = ctx.set_source_surface(&surface_for_left, _final_left_margin, _top_margin_for_left);
+    let _ = ctx.set_source_pixbuf(&_left, _final_left_margin, _top_margin_for_left);
     let _ = ctx.paint();
 }
 

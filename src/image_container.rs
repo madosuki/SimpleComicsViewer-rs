@@ -20,8 +20,7 @@ enum PictureDirectionType {
 pub struct ImageContainer {
     modified_pixbuf_data: RefCell<Option<gdk_pixbuf::Pixbuf>>,
     orig_pixbuf_data: RefCell<Option<gdk_pixbuf::Pixbuf>>,
-    file_name: RefCell<Option<String>>,
-    left_margin: RefCell<Option<f64>>,
+    // file_name: RefCell<Option<String>>,
 }
 
 #[derive(Default)]
@@ -38,7 +37,6 @@ pub trait ImageContainerEx {
     fn get_modified_height(&self) -> Option<i32>;
     fn get_orig_width(&self) -> Option<i32>;
     fn get_orig_height(&self) -> Option<i32>;
-    fn get_left_margin(&self) -> Option<f64>;
     fn scale(&self, target_width: i32, target_height: i32, is_dual_mode: bool);
 }
 
@@ -95,13 +93,6 @@ impl ImageContainerEx for ImageContainer {
         })
     }
 
-    fn get_left_margin(&self) -> Option<f64> {
-        match *self.left_margin.borrow() {
-            Some(v) => Some(v.clone()),
-            None => None
-        }
-    }
-
     fn scale(&self, target_width: i32, target_height: i32, is_dual_mode: bool) {
         if target_width < 1 || target_height < 1 {
             return;
@@ -152,10 +143,6 @@ impl ImageContainerEx for ImageContainer {
                 }
             }
         }
-
-        let _left_margin = f64::from(target_width - _result_width);
-        self.left_margin.replace(Some(_left_margin));
-        println!("result width: {}, result height: {}", _result_width, _result_height);
 
         let Some(scaled) = pixbuf_data.scale_simple(_result_width, _result_height, gdk_pixbuf::InterpType::Bilinear) else { return };
         let _ = self.modified_pixbuf_data.replace_with(|_| Some(scaled.clone()));
