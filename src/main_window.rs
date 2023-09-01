@@ -298,14 +298,24 @@ fn create_action_entry_for_menu(_window: &gtk::ApplicationWindow,
                                 _image_container_list: &std::rc::Rc<std::cell::RefCell<Vec<ImageContainer>>>,
                                 _pages_info: &std::rc::Rc<PagesInfo>,
                                 _drawing_area_ref: &DrawingArea,
-                                _settings: &std::rc::Rc<Settings>) -> gio::ActionEntry<gtk::Application> {
-        let _action_entry: gio::ActionEntry<gtk::Application> = gio::ActionEntry::builder("file_open")
+                                _settings: &std::rc::Rc<Settings>) -> Vec<gio::ActionEntry<gtk::Application>> {
+    let _file_action_entry: gio::ActionEntry<gtk::Application> = gio::ActionEntry::builder("file_open")
         .activate(glib::clone!(@weak _window, @strong _image_container_list, @strong _pages_info, @strong _settings, @strong _drawing_area_ref => move |_app: &gtk::Application, _action: &gio::SimpleAction, _user_data: Option<&glib::Variant>| {
             open_file_action(&_window, &_image_container_list, &_drawing_area_ref, &_settings, &_pages_info);
         }))
         .build();
 
-    _action_entry
+    let _quit_action_entry: gio::ActionEntry<gtk::Application> = gio::ActionEntry::builder("quit")
+        .activate(glib::clone!(@weak _window => move |_app: &gtk::Application, _action: &gio::SimpleAction, _user_data: Option<&glib::Variant>| {
+            _app.quit();
+    })).build();
+
+
+    let result: Vec<gio::ActionEntry<gtk::Application>> = vec![
+        _file_action_entry,
+        _quit_action_entry
+    ];
+    result
 }
 
 fn draw_single_page(_image_container_list: &Vec<ImageContainer>, _pages_info: &PagesInfo, area: &DrawingArea, ctx: &cairo::Context) {
@@ -560,7 +570,7 @@ impl MainWindow {
 
         let _drawing_area_ref = &_drawing_area;
         let _action_entry = create_action_entry_for_menu(_window, _image_container_list, _pages_info, _drawing_area_ref, _settings);
-        app.add_action_entries(vec!(_action_entry));
+        app.add_action_entries(_action_entry);
         self.window.set_application(Some(app));
 
         self.window.set_child(Some(&self.v_box));
