@@ -29,6 +29,7 @@ pub struct AspectRatioCollection {
     for_height: f64,
 }
 
+#[allow(dead_code)]
 pub trait ImageContainerEx {
     fn set_pixbuf_from_file(&self, file: &gio::File, _window_width: i32, _window_height: i32);
     fn set_pixbuf_from_bytes(&self, bytes: &[u8], _window_width: i32, _window_height: i32);
@@ -149,6 +150,7 @@ impl ImageContainerEx for ImageContainer {
     }
 }
 
+#[allow(dead_code)]
 pub fn read_bytes_from_file_path(path_str: &str) -> Option<Vec<u8>> {
     let path = Some(std::path::Path::new(path_str)).unwrap();
     let mut f = File::open(path).unwrap();
