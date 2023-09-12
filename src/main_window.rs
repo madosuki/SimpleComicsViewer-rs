@@ -6,6 +6,8 @@ use gtk::{Application, ApplicationWindow, Button, Allocation, DrawingArea, cairo
 use gdk_pixbuf;
 use gdk_pixbuf::prelude::PixbufLoaderExt;
 
+use anyhow::Result;
+
 use crate::image_container;
 use crate::image_loader;
 use crate::utils;
@@ -460,14 +462,14 @@ fn move_page(n: i32,
 }
 
 impl MainWindow {
-    fn new() -> MainWindow {
+    fn new() -> Self {
 
         let window_ui_src = include_str!("window.ui");
         
         let builder = gtk::Builder::new();
         let _ = builder.add_from_string(window_ui_src);
 
-        let _win: ApplicationWindow = builder.object("window").unwrap();
+        let _win = builder.object("window").unwrap();
 
         let _result = MainWindow {
             window: _win,
@@ -480,7 +482,7 @@ impl MainWindow {
         _result
     }
 
-    fn init(&self, app: &Application, width: i32, height: i32) {
+    fn init(&self, app: &Application, width: i32, height: i32) -> Result<()> {
         self.window.set_title(Some("Simple Comics Viewer"));
         self.window.set_default_size(width, height);
         self.window.set_show_menubar(true);
@@ -493,7 +495,7 @@ impl MainWindow {
 
         let menu_ui_src = include_str!("menu.ui");
         let builder = gtk::Builder::new();
-        let _ = builder.add_from_string(menu_ui_src);
+        builder.add_from_string(menu_ui_src)?;
         let _menubar: gio::MenuModel = builder.object("menu").unwrap();
         app.set_menubar(Some(&_menubar));
 
@@ -574,6 +576,7 @@ impl MainWindow {
         self.window.set_application(Some(app));
 
         self.window.set_child(Some(&self.v_box));
+        Ok(())
     }
 
     fn run(&self) {
@@ -584,6 +587,12 @@ impl MainWindow {
 
 pub fn activate(app: &Application) {
     let main = MainWindow::new();
-    main.init(app, 1024, 768);
-    main.run();
+    match main.init(app, 1024, 768) {
+        Ok(_) => {
+            main.run();            
+        },
+        Err(e) => {
+            println!("{}", e);
+        }
+    }
 }

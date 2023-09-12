@@ -9,6 +9,9 @@
           <attribute name="action">app.file_open</attribute>
         </item>
         <item>
+          <attribute name="label" translatable="yes">History</attribute>
+        </item>
+        <item>
           <attribute name="label" translatable="yes">Quit</attribute>
           <attribute name="action">app.quit</attribute>
         </item>
