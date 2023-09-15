@@ -1,7 +1,23 @@
 use gtk4 as gtk;
 use gdk4 as gdk;
 
-use gtk::prelude::{ApplicationExt, ApplicationWindowExt, GtkApplicationExt, GtkWindowExt, WidgetExt, DialogExt, FileChooserExt, FileChooserExtManual,  MenuModelExt, BoxExt, DrawingAreaExt, DrawingAreaExtManual, SurfaceExt, GdkCairoContextExt, PopoverExt, ActionMapExtManual, FileExt};
+use gtk::prelude::{ApplicationExt,
+                   ApplicationWindowExt,
+                   GtkApplicationExt,
+                   GridExt,
+                   GtkWindowExt,
+                   WidgetExt,
+                   DialogExt,
+                   FileChooserExt, FileChooserExtManual,
+                   MenuModelExt,
+                   BoxExt,
+                   DrawingAreaExt, DrawingAreaExtManual,
+                   SurfaceExt,
+                   GdkCairoContextExt,
+                   PopoverExt,
+                   ActionMapExtManual,
+                   MenuLinkIterExt,
+                   FileExt};
 use gtk::{Application, ApplicationWindow, Button, Allocation, DrawingArea, cairo, PopoverMenu, gio, glib, EventControllerKey};
 use gdk_pixbuf;
 use gdk_pixbuf::prelude::PixbufLoaderExt;
@@ -45,6 +61,7 @@ struct MainWindow {
     image_container_list: std::rc::Rc<std::cell::RefCell<Vec<ImageContainer>>>,
     pages_info: std::rc::Rc<PagesInfo>,
     settings: std::rc::Rc<Settings>,
+    scroll_window: gtk::ScrolledWindow,
 }
 
 fn update_window_title(_window: &gtk::ApplicationWindow, _msg: &str) {
@@ -178,7 +195,8 @@ fn set_page_from_bytes(bytes: &[u8], _image_container_list: &std::rc::Rc<std::ce
     let _image_container = ImageContainer::default();
 
     _image_container_list.borrow_mut().push(_image_container);
-    
+
+    println!("{}, {}", width, height);
     _image_container_list.borrow()[page_index].set_pixbuf_from_bytes(bytes, width, height);
     if is_dual_mode {
         let half_width = width / 2;
@@ -477,12 +495,15 @@ impl MainWindow {
             image_container_list: std::rc::Rc::new(std::cell::RefCell::new(vec!())),
             pages_info: std::rc::Rc::new(PagesInfo::default()),
             settings: std::rc::Rc::new(Settings::default()),
+            scroll_window: gtk::ScrolledWindow::new(),
         };
 
         _result
     }
 
     fn init(&self, app: &Application, width: i32, height: i32) -> Result<()> {
+        // let _header_bar = gtk::HeaderBar::builder().build();
+        // self.window.set_titlebar(Some(&_header_bar));
         self.window.set_title(Some("Simple Comics Viewer"));
         self.window.set_default_size(width, height);
         self.window.set_show_menubar(true);
@@ -496,13 +517,28 @@ impl MainWindow {
         let menu_ui_src = include_str!("menu.ui");
         let builder = gtk::Builder::new();
         builder.add_from_string(menu_ui_src)?;
-        let _menubar: gio::MenuModel = builder.object("menu").unwrap();
-        app.set_menubar(Some(&_menubar));
+        let _menu_model: gio::MenuModel = builder.object("menu").unwrap();
+        // let _menu_button = gtk::MenuButton::builder()
+        //     .menu_model(&_menu_model)
+        //     .focus_on_click(true)
+        //     .build();
+        // _header_bar.pack_end(&_menu_button);
+        
+        let _popover_menu = gtk::PopoverMenu::from_model(Some(&_menu_model));
+        app.set_menubar(Some(&_popover_menu.menu_model().unwrap()));
+        // let _history = _menubar.;
+        // println!("{:?}", _history);
+        // let _tmp_section = _history.unwrap().n_children();
+        // println!("{}", _tmp_section);
 
-
+        // let _popover_menu_bar = gtk::PopoverMenuBar::from_model(Some(&_menu_model));
+        // let _menu_button = gtk::MenuButton::builder().label("M").build();
+        
         let _drawing_area = gtk::DrawingArea::builder()
             .hexpand_set(true)
             .vexpand_set(true)
+            .halign(gtk::Align::Fill)
+            .valign(gtk::Align::Fill)
             .build();
         _drawing_area.set_draw_func(glib::clone!(@strong _image_container_list, @strong _pages_info, @strong _settings => move |area: &DrawingArea, ctx: &cairo::Context, _width: i32, _height: i32| {
             if _image_container_list.borrow().is_empty() {
@@ -518,7 +554,7 @@ impl MainWindow {
 
         let _ = _drawing_area.connect_resize(glib::clone!(@strong _image_container_list, @strong _pages_info, @strong _settings => move|_drawing_area: &DrawingArea, _width: i32, _height: i32| {
             if _image_container_list.borrow().is_empty() { return; }
-            // println!("resized! {}, {}", _drawing_area.allocated_width(), _drawing_area.allocated_height());
+            
             let _index = _pages_info.current_page_index.as_ref().borrow().clone();
             if *_settings.is_dual_mode.borrow() {
                 scale_page_for_dual(&_image_container_list, _index, _width, _height);
@@ -564,18 +600,26 @@ impl MainWindow {
         }));
         self.window.add_controller(_event_controller_key);
 
-
-        let _scroll = gtk::ScrolledWindow::builder().child(&_drawing_area).build();
-        _scroll.set_hexpand(true);
-        _scroll.set_vexpand(true);
-        self.v_box.append(&_scroll);
+        // let _scroll = gtk::ScrolledWindow::builder().child(&self.v_box).build();
+        // _scroll.set_hexpand(true);
+        // _scroll.set_vexpand(true);
+        self.scroll_window.set_hexpand(true);
+        self.scroll_window.set_vexpand(true);
+        self.scroll_window.set_halign(gtk::Align::Fill);
+        self.scroll_window.set_valign(gtk::Align::Fill);
 
         let _drawing_area_ref = &_drawing_area;
         let _action_entry = create_action_entry_for_menu(_window, _image_container_list, _pages_info, _drawing_area_ref, _settings);
         app.add_action_entries(_action_entry);
+        self.scroll_window.set_child(Some(_drawing_area_ref));
+        // self.v_box.set_halign(gtk::Align::Fill);
+        // self.v_box.set_valign(gtk::Align::Fill);
+        // self.v_box.set_hexpand(true);
+        // self.v_box.set_vexpand(true);
+        // self.v_box.append(&_drawing_area);
+        
         self.window.set_application(Some(app));
-
-        self.window.set_child(Some(&self.v_box));
+        self.window.set_child(Some(&self.scroll_window));
         Ok(())
     }
 
