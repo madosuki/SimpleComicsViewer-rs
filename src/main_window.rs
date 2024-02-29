@@ -24,7 +24,6 @@ use gdk_pixbuf::prelude::PixbufLoaderExt;
 
 use anyhow::Result;
 
-use std::borrow::Borrow;
 use std::sync::Arc;
 use std::sync::Mutex;
 use tokio;
