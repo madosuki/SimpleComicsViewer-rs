@@ -24,6 +24,10 @@ use gdk_pixbuf::prelude::PixbufLoaderExt;
 
 use anyhow::Result;
 
+use std::sync::Arc;
+use std::sync::Mutex;
+use tokio;
+
 use crate::image_container;
 use crate::image_loader;
 use crate::utils;
@@ -31,7 +35,7 @@ use image_container::{ImageContainer, ImageContainerEx};
 
 #[derive(Default)]
 struct PagesInfo {
-    current_page_index: std::rc::Rc<std::cell::RefCell<usize>>,
+    current_page_index: Arc<Mutex<usize>>,
     loaded_filename: std::rc::Rc<std::cell::RefCell<Option<String>>>,
     loaded_dirname: std::rc::Rc<std::cell::RefCell<Option<String>>>,
 }
@@ -59,8 +63,8 @@ struct MainWindow {
     window: ApplicationWindow,
     v_box: gtk::Box,
     image_container_list: std::rc::Rc<std::cell::RefCell<Vec<ImageContainer>>>,
-    pages_info: std::rc::Rc<PagesInfo>,
-    settings: std::rc::Rc<Settings>,
+    pages_info: std::sync::Arc<PagesInfo>,
+    settings: std::sync::Arc<Settings>,
     scroll_window: gtk::ScrolledWindow,
 }
 
@@ -209,8 +213,8 @@ fn set_page_from_bytes(bytes: &[u8], _image_container_list: &std::rc::Rc<std::ce
 fn open_and_set_image_from_zip(file: &gio::File,
                                _image_container_list: &std::rc::Rc<std::cell::RefCell<Vec<ImageContainer>>>,
                                _drawing_area_ref: &DrawingArea,
-                               _settings: &Settings,
-                               _pages_info: &std::rc::Rc<PagesInfo>,
+                               _settings: &Arc<Settings>,
+                               _pages_info: &Arc<PagesInfo>,
                                _window: &gtk::ApplicationWindow) {
     let Some(_pathbuf) = file.path() else { return; };
     let Some(_pathname) = _pathbuf.as_path().to_str() else {
@@ -241,7 +245,7 @@ fn open_and_set_image(file: &gio::File,
                       _image_container_list: &std::rc::Rc<std::cell::RefCell<Vec<ImageContainer>>>,
                       _drawing_area_ref: &DrawingArea,
                       page_index: usize,
-                      _settings: &Settings,
+                      _settings: &Arc<Settings>,
                       is_one: bool,
                       _window: &gtk::ApplicationWindow) {
     match utils::detect_file_type_from_file(&file) {
@@ -259,7 +263,7 @@ fn open_and_set_image(file: &gio::File,
     }
 }
 
-fn open_file_action(_window: &gtk::ApplicationWindow, _image_container_list: &std::rc::Rc<std::cell::RefCell<Vec<ImageContainer>>>, _drawing_area_ref: &DrawingArea, _settings: &std::rc::Rc<Settings>, _pages_info: &std::rc::Rc<PagesInfo>) {
+fn open_file_action(_window: &gtk::ApplicationWindow, _image_container_list: &std::rc::Rc<std::cell::RefCell<Vec<ImageContainer>>>, _drawing_area_ref: &DrawingArea, _settings: &Arc<Settings>, _pages_info: &Arc<PagesInfo>) {
     let dialog = gtk::FileChooserDialog::new(Some("File Select"),
                                              Some(_window),
                                              gtk::FileChooserAction::Open,
@@ -279,7 +283,7 @@ fn open_file_action(_window: &gtk::ApplicationWindow, _image_container_list: &st
                 };
 
             _image_container_list.borrow_mut().clear();
-            _pages_info.current_page_index.replace(0);
+            *_pages_info.current_page_index.lock().unwrap() = 0;
             if is_zip {
                 open_and_set_image_from_zip(&file, &_image_container_list, &_drawing_area_ref, &_settings, &_pages_info, &_window);
             } else {
@@ -316,9 +320,9 @@ fn open_file_action(_window: &gtk::ApplicationWindow, _image_container_list: &st
 
 fn create_action_entry_for_menu(_window: &gtk::ApplicationWindow,
                                 _image_container_list: &std::rc::Rc<std::cell::RefCell<Vec<ImageContainer>>>,
-                                _pages_info: &std::rc::Rc<PagesInfo>,
+                                _pages_info: &Arc<PagesInfo>,
                                 _drawing_area_ref: &DrawingArea,
-                                _settings: &std::rc::Rc<Settings>) -> Vec<gio::ActionEntry<gtk::Application>> {
+                                _settings: &std::sync::Arc<Settings>) -> Vec<gio::ActionEntry<gtk::Application>> {
     let _file_action_entry: gio::ActionEntry<gtk::Application> = gio::ActionEntry::builder("file_open")
         .activate(glib::clone!(@weak _window, @strong _image_container_list, @strong _pages_info, @strong _settings, @strong _drawing_area_ref => move |_app: &gtk::Application, _action: &gio::SimpleAction, _user_data: Option<&glib::Variant>| {
             open_file_action(&_window, &_image_container_list, &_drawing_area_ref, &_settings, &_pages_info);
@@ -339,7 +343,8 @@ fn create_action_entry_for_menu(_window: &gtk::ApplicationWindow,
 }
 
 fn draw_single_page(_image_container_list: &Vec<ImageContainer>, _pages_info: &PagesInfo, area: &DrawingArea, ctx: &cairo::Context) {
-    let _index = _pages_info.current_page_index.as_ref().borrow().clone();
+    // let _index = _pages_info.current_page_index.as_ref().borrow().clone();
+    let _index = _pages_info.current_page_index.lock().unwrap().clone();
 
     let Some(modified) = _image_container_list[_index].get_modified_pixbuf_data() else { return; };
     let format = if modified.has_alpha() {
@@ -361,7 +366,8 @@ fn draw_single_page(_image_container_list: &Vec<ImageContainer>, _pages_info: &P
 }
 
 fn draw_dual_page(_image_container_list: &Vec<ImageContainer>, _pages_info: &PagesInfo, _settings: &Settings, area: &DrawingArea, ctx: &cairo::Context) {
-    let _index = _pages_info.current_page_index.as_ref().borrow().clone();
+    // let _index = _pages_info.current_page_index.as_ref().borrow().clone();
+    let _index = _pages_info.current_page_index.lock().unwrap().clone();
     let _right_index = _index;
     let _left_index = _index + 1;
     let half_area_width = area.allocated_width() / 2;
@@ -446,14 +452,15 @@ fn move_page(n: i32,
              _settings: &Settings,
              _drawing_area: &DrawingArea,
              _image_container_list: &std::rc::Rc<std::cell::RefCell<Vec<ImageContainer>>>,
-             _pages_info: &std::rc::Rc<PagesInfo>) {
+             _pages_info: &Arc<PagesInfo>) {
 
     if n == 0 || _image_container_list.borrow().is_empty() {
         return;
     }
 
     let size = _image_container_list.borrow().len();
-    let _i = _pages_info.current_page_index.borrow().clone();
+    // let _i = _pages_info.current_page_index.borrow().clone();
+    let _i = _pages_info.current_page_index.lock().unwrap().clone();
     if _i == 0 && n < 0 {
         return;
     }
@@ -467,7 +474,8 @@ fn move_page(n: i32,
         _result = size - 1;
     }
             
-    _pages_info.current_page_index.replace(_result);
+    // _pages_info.current_page_index.replace(_result);
+    *_pages_info.current_page_index.lock().unwrap() = _result;
     let _height = _drawing_area.allocated_height();
     let _width = _drawing_area.allocated_width();
     if *_settings.is_dual_mode.borrow() {
@@ -493,8 +501,8 @@ impl MainWindow {
             window: _win,
             v_box: gtk::Box::new(gtk::Orientation::Vertical, 1),
             image_container_list: std::rc::Rc::new(std::cell::RefCell::new(vec!())),
-            pages_info: std::rc::Rc::new(PagesInfo::default()),
-            settings: std::rc::Rc::new(Settings::default()),
+            pages_info: std::sync::Arc::new(PagesInfo::default()),
+            settings: std::sync::Arc::new(Settings::default()),
             scroll_window: gtk::ScrolledWindow::new(),
         };
 
@@ -555,7 +563,8 @@ impl MainWindow {
         let _ = _drawing_area.connect_resize(glib::clone!(@strong _image_container_list, @strong _pages_info, @strong _settings => move|_drawing_area: &DrawingArea, _width: i32, _height: i32| {
             if _image_container_list.borrow().is_empty() { return; }
             
-            let _index = _pages_info.current_page_index.as_ref().borrow().clone();
+            // let _index = _pages_info.current_page_index.as_ref().borrow().clone();
+            let _index = _pages_info.current_page_index.lock().unwrap().clone();
             if *_settings.is_dual_mode.borrow() {
                 scale_page_for_dual(&_image_container_list, _index, _width, _height);
             } else {
