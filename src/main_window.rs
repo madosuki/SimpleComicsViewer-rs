@@ -24,6 +24,7 @@ use gdk_pixbuf::prelude::PixbufLoaderExt;
 
 use anyhow::Result;
 
+use std::borrow::Borrow;
 use std::sync::Arc;
 use std::sync::Mutex;
 use tokio;
@@ -36,13 +37,13 @@ use image_container::{ImageContainer, ImageContainerEx};
 #[derive(Default)]
 struct PagesInfo {
     current_page_index: Arc<Mutex<usize>>,
-    loaded_filename: std::rc::Rc<std::cell::RefCell<Option<String>>>,
-    loaded_dirname: std::rc::Rc<std::cell::RefCell<Option<String>>>,
+    loaded_filename: Arc<Mutex<Option<String>>>,
+    loaded_dirname: Arc<Mutex<Option<String>>>,
 }
 
 #[derive(Default)]
 struct Settings {
-    is_dual_mode: std::rc::Rc<std::cell::RefCell<bool>>,
+    is_dual_mode: Arc<Mutex<bool>>,
 }
 
 #[derive(Default)]
@@ -224,17 +225,18 @@ fn open_and_set_image_from_zip(file: &gio::File,
         return;
     };
     let Some(_file_name) = _file_name_osstr.to_str() else { return; };
-    _pages_info.loaded_filename.replace(Some(_file_name.to_owned()));
+    *_pages_info.loaded_filename.lock().unwrap() = Some(_file_name.to_owned());
     update_window_title(_window, _file_name);
 
     let _extracted = image_loader::load_from_compressed_file_to_memory(_pathname).unwrap();
 
     let mut count = 0;
     _extracted.into_iter().for_each(|v| {
-        if *_settings.is_dual_mode.borrow() {
-            set_page_from_bytes(&v.value, &_image_container_list, count, _drawing_area_ref.allocated_width(), _drawing_area_ref.allocated_height(), _settings.is_dual_mode.borrow().clone());
+        let is_dual_model = _settings.is_dual_mode.lock().unwrap();
+        if *is_dual_model {
+            set_page_from_bytes(&v.value, &_image_container_list, count, _drawing_area_ref.allocated_width(), _drawing_area_ref.allocated_height(), *is_dual_model);
         } else {
-            set_page_from_bytes(&v.value, &_image_container_list, count, _drawing_area_ref.allocated_width(), _drawing_area_ref.allocated_height(), _settings.is_dual_mode.borrow().clone());
+            set_page_from_bytes(&v.value, &_image_container_list, count, _drawing_area_ref.allocated_width(), _drawing_area_ref.allocated_height(), *is_dual_model);
         }
 
         count = count + 1;
@@ -258,7 +260,7 @@ fn open_and_set_image(file: &gio::File,
                 update_window_title(_window, _file_name_str);
             }
             
-            set_page_from_file(&file, &_image_container_list, page_index, _drawing_area_ref.allocated_width(), _drawing_area_ref.allocated_height(), *_settings.is_dual_mode.borrow());
+            set_page_from_file(&file, &_image_container_list, page_index, _drawing_area_ref.allocated_width(), _drawing_area_ref.allocated_height(), *_settings.is_dual_mode.lock().unwrap());
         }
     }
 }
@@ -295,7 +297,7 @@ fn open_file_action(_window: &gtk::ApplicationWindow, _image_container_list: &st
 
                 let Some(_dir_str) = _dir.to_str() else { return; };
                 update_window_title(&_window, _dir_str);
-                _pages_info.loaded_dirname.replace(Some(_dir_str.to_owned()));
+                *_pages_info.loaded_dirname.lock().unwrap() = Some(_dir_str.to_owned());
 
                 let mut count: usize = 0;
                 for entry in _dir.read_dir().expect("read_dir call failed") {
@@ -478,7 +480,7 @@ fn move_page(n: i32,
     *_pages_info.current_page_index.lock().unwrap() = _result;
     let _height = _drawing_area.allocated_height();
     let _width = _drawing_area.allocated_width();
-    if *_settings.is_dual_mode.borrow() {
+    if *_settings.is_dual_mode.lock().unwrap() {
         scale_page_for_dual(&_image_container_list, _result, _width, _height);
     } else {
         scale_page_for_single(&_image_container_list, _result, _width, _height);
@@ -520,7 +522,7 @@ impl MainWindow {
         let _image_container_list = &self.image_container_list;
         let _pages_info = &self.pages_info;
         let _settings = &self.settings;
-        _settings.is_dual_mode.replace(true);
+        *_settings.is_dual_mode.lock().unwrap() = true;
 
         let menu_ui_src = include_str!("menu.ui");
         let builder = gtk::Builder::new();
@@ -553,7 +555,7 @@ impl MainWindow {
                 return;
             }
 
-            if *_settings.is_dual_mode.borrow() {
+            if *_settings.is_dual_mode.lock().unwrap() {
                 draw_dual_page(&_image_container_list.borrow(), &_pages_info, &_settings, area, ctx);
             } else {
                 draw_single_page(&_image_container_list.borrow(), &_pages_info, area, ctx);
@@ -565,7 +567,7 @@ impl MainWindow {
             
             // let _index = _pages_info.current_page_index.as_ref().borrow().clone();
             let _index = _pages_info.current_page_index.lock().unwrap().clone();
-            if *_settings.is_dual_mode.borrow() {
+            if *_settings.is_dual_mode.lock().unwrap() {
                 scale_page_for_dual(&_image_container_list, _index, _width, _height);
             } else {
                 scale_page_for_single(&_image_container_list, _index, _width, _height);                
@@ -589,7 +591,7 @@ impl MainWindow {
 
             match keyval {
                 gdk::Key::Left => {
-                    if *_settings.is_dual_mode.borrow() {
+                    if *_settings.is_dual_mode.lock().unwrap() {
                         move_page(2, &_settings, &_drawing_area, &_image_container_list, &_pages_info);
                     } else {
                         move_page(1, &_settings, &_drawing_area, &_image_container_list, &_pages_info);
@@ -597,7 +599,7 @@ impl MainWindow {
                     gtk::Inhibit(true)
                 },
                 gdk::Key::Right => {
-                    if *_settings.is_dual_mode.borrow() {
+                    if *_settings.is_dual_mode.lock().unwrap() {
                         move_page(-2, &_settings, &_drawing_area, &_image_container_list, &_pages_info);
                     } else {
                         move_page(-1, &_settings, &_drawing_area, &_image_container_list, &_pages_info);
