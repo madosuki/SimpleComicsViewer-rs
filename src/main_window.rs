@@ -26,7 +26,6 @@ use anyhow::Result;
 
 use std::sync::Arc;
 use std::sync::Mutex;
-use tokio;
 
 use crate::image_container;
 use crate::image_loader;
@@ -62,7 +61,7 @@ struct MarginDataForDual {
 struct MainWindow {
     window: ApplicationWindow,
     v_box: gtk::Box,
-    image_container_list: std::rc::Rc<std::cell::RefCell<Vec<ImageContainer>>>,
+    image_container_list: Arc<Mutex<Vec<ImageContainer>>>,
     pages_info: std::sync::Arc<PagesInfo>,
     settings: std::sync::Arc<Settings>,
     scroll_window: gtk::ScrolledWindow,
@@ -139,83 +138,83 @@ fn calc_margin_for_dual(_left: &gdk_pixbuf::Pixbuf, _right: &gdk_pixbuf::Pixbuf,
 }
 
 
-fn scale_page_for_single(image_container_list: &std::rc::Rc<std::cell::RefCell<Vec<ImageContainer>>>, current_page_index: usize, _target_width: i32, _target_height: i32) {
+fn scale_page_for_single(image_container_list: &Arc<Mutex<Vec<ImageContainer>>>, current_page_index: usize, _target_width: i32, _target_height: i32) {
 
     if (_target_width < 1) || (_target_height < 1) {
         return;
     }
     
-    if image_container_list.borrow().is_empty() {
+    if (*image_container_list.lock().unwrap()).is_empty() {
         return;
     }
 
-    if current_page_index >= image_container_list.borrow().len() {
+    if current_page_index >= (*image_container_list.lock().unwrap()).len() {
         return;
     }
 
     
-    image_container_list.borrow()[current_page_index].scale(_target_width, _target_height, false);
+    (*image_container_list.lock().unwrap())[current_page_index].scale(_target_width, _target_height, false);
 }
 
-fn scale_page_for_dual(image_container_list: &std::rc::Rc<std::cell::RefCell<Vec<ImageContainer>>>, current_page_index: usize, _target_width: i32, _target_height: i32) {
+fn scale_page_for_dual(image_container_list: &Arc<Mutex<Vec<ImageContainer>>>, current_page_index: usize, _target_width: i32, _target_height: i32) {
 
     if (_target_width < 1) || (_target_height < 1) {
         return;
     }
     
-    if image_container_list.borrow().is_empty() {
+    if (*image_container_list.lock().unwrap()).is_empty() {
         return;
     }
 
     let next_index = current_page_index + 1;
-    let _image_container_list_len = image_container_list.borrow().len();
+    let _image_container_list_len = (*image_container_list.lock().unwrap()).len();
 
     let final_target_width = _target_width / 2;
-    image_container_list.borrow()[current_page_index].scale(final_target_width, _target_height, true);
+    (*image_container_list.lock().unwrap())[current_page_index].scale(final_target_width, _target_height, true);
 
     if next_index != _image_container_list_len {
-        image_container_list.borrow()[next_index].scale(final_target_width, _target_height, true);
+        (*image_container_list.lock().unwrap())[next_index].scale(final_target_width, _target_height, true);
     }
 }
 
 
 
-fn set_page_from_file(file: &gio::File, _image_container_list: &std::rc::Rc<std::cell::RefCell<Vec<ImageContainer>>>, page_index: usize, width: i32, height: i32, is_dual_mode: bool) {
+fn set_page_from_file(file: &gio::File, _image_container_list: &Arc<Mutex<Vec<ImageContainer>>>, page_index: usize, width: i32, height: i32, is_dual_mode: bool) {
     let _image_container = ImageContainer::default();
-    _image_container_list.borrow_mut().push(_image_container);
+    (*_image_container_list.lock().unwrap()).push(_image_container);
 
-    _image_container_list.borrow()[page_index].set_pixbuf_from_file(file, width, height);
+    (*_image_container_list.lock().unwrap())[page_index].set_pixbuf_from_file(file, width, height);
 
     if is_dual_mode {
         let half_width = width / 2;
-        _image_container_list.borrow()[page_index].scale(half_width, height, is_dual_mode);
+        (*_image_container_list.lock().unwrap())[page_index].scale(half_width, height, is_dual_mode);
     } else {
-        _image_container_list.borrow()[page_index].scale(width, height, is_dual_mode);
+        (*_image_container_list.lock().unwrap())[page_index].scale(width, height, is_dual_mode);
     }
 
 }
 
-fn set_page_from_bytes(bytes: &[u8], _image_container_list: &std::rc::Rc<std::cell::RefCell<Vec<ImageContainer>>>, page_index: usize, width: i32, height: i32, is_dual_mode: bool) {
+fn set_page_from_bytes(bytes: &[u8], _image_container_list: &Arc<Mutex<Vec<ImageContainer>>>, page_index: usize, width: i32, height: i32, is_dual_mode: bool) {
     let _image_container = ImageContainer::default();
 
-    _image_container_list.borrow_mut().push(_image_container);
+    (*_image_container_list.lock().unwrap()).push(_image_container);
 
     println!("{}, {}", width, height);
-    _image_container_list.borrow()[page_index].set_pixbuf_from_bytes(bytes, width, height);
+    (*_image_container_list.lock().unwrap())[page_index].set_pixbuf_from_bytes(bytes, width, height);
     if is_dual_mode {
         let half_width = width / 2;
-        _image_container_list.borrow()[page_index].scale(half_width, height, true);
+        (*_image_container_list.lock().unwrap())[page_index].scale(half_width, height, true);
     } else {
-        _image_container_list.borrow()[page_index].scale(width, height, false);
+        (*_image_container_list.lock().unwrap())[page_index].scale(width, height, false);
     }
 }
 
 fn open_and_set_image_from_zip(file: &gio::File,
-                               _image_container_list: &std::rc::Rc<std::cell::RefCell<Vec<ImageContainer>>>,
+                               _image_container_list: &Arc<Mutex<Vec<ImageContainer>>>,
                                _drawing_area_ref: &DrawingArea,
                                _settings: &Arc<Settings>,
                                _pages_info: &Arc<PagesInfo>,
-                               _window: &gtk::ApplicationWindow) {
+                               _window: &Arc<Mutex<&gtk::ApplicationWindow>>) {
     let Some(_pathbuf) = file.path() else { return; };
     let Some(_pathname) = _pathbuf.as_path().to_str() else {
         return;
@@ -225,7 +224,7 @@ fn open_and_set_image_from_zip(file: &gio::File,
     };
     let Some(_file_name) = _file_name_osstr.to_str() else { return; };
     *_pages_info.loaded_filename.lock().unwrap() = Some(_file_name.to_owned());
-    update_window_title(_window, _file_name);
+    update_window_title(*_window.lock().unwrap(), _file_name);
 
     let _extracted = image_loader::load_from_compressed_file_to_memory(_pathname).unwrap();
 
@@ -243,7 +242,7 @@ fn open_and_set_image_from_zip(file: &gio::File,
 }
 
 fn open_and_set_image(file: &gio::File,
-                      _image_container_list: &std::rc::Rc<std::cell::RefCell<Vec<ImageContainer>>>,
+                      _image_container_list: &Arc<Mutex<Vec<ImageContainer>>>,
                       _drawing_area_ref: &DrawingArea,
                       page_index: usize,
                       _settings: &Arc<Settings>,
@@ -264,7 +263,7 @@ fn open_and_set_image(file: &gio::File,
     }
 }
 
-fn open_file_action(_window: &gtk::ApplicationWindow, _image_container_list: &std::rc::Rc<std::cell::RefCell<Vec<ImageContainer>>>, _drawing_area_ref: &DrawingArea, _settings: &Arc<Settings>, _pages_info: &Arc<PagesInfo>) {
+fn open_file_action(_window: &gtk::ApplicationWindow, _image_container_list: &Arc<Mutex<Vec<ImageContainer>>>, _drawing_area_ref: &DrawingArea, _settings: &Arc<Settings>, _pages_info: &Arc<PagesInfo>) {
     let dialog = gtk::FileChooserDialog::new(Some("File Select"),
                                              Some(_window),
                                              gtk::FileChooserAction::Open,
@@ -283,10 +282,11 @@ fn open_file_action(_window: &gtk::ApplicationWindow, _image_container_list: &st
                     _ => false
                 };
 
-            _image_container_list.borrow_mut().clear();
+            (*_image_container_list.lock().unwrap()).clear();
             *_pages_info.current_page_index.lock().unwrap() = 0;
             if is_zip {
-                open_and_set_image_from_zip(&file, &_image_container_list, &_drawing_area_ref, &_settings, &_pages_info, &_window);
+                let _win = Arc::new(Mutex::new(&_window));
+                open_and_set_image_from_zip(&file, &_image_container_list, &_drawing_area_ref, &_settings, &_pages_info, &_win);
             } else {
                 let Some(_dir) = _path.parent() else {
                     open_and_set_image(&file, &_image_container_list, &_drawing_area_ref, 0, &_settings, true, &_window);
@@ -320,7 +320,7 @@ fn open_file_action(_window: &gtk::ApplicationWindow, _image_container_list: &st
 }
 
 fn create_action_entry_for_menu(_window: &gtk::ApplicationWindow,
-                                _image_container_list: &std::rc::Rc<std::cell::RefCell<Vec<ImageContainer>>>,
+                                _image_container_list: &Arc<Mutex<Vec<ImageContainer>>>,
                                 _pages_info: &Arc<PagesInfo>,
                                 _drawing_area_ref: &DrawingArea,
                                 _settings: &std::sync::Arc<Settings>) -> Vec<gio::ActionEntry<gtk::Application>> {
@@ -439,7 +439,7 @@ fn draw_dual_page(_image_container_list: &Vec<ImageContainer>, _pages_info: &Pag
     let _ = ctx.paint();
 }
 
-fn fullscreen(_window: &gtk::ApplicationWindow, _image_container_list: &std::rc::Rc<std::cell::RefCell<Vec<ImageContainer>>>, _pages_info: &PagesInfo, _drawing_area_ref: &DrawingArea) {
+fn fullscreen(_window: &gtk::ApplicationWindow, _image_container_list: &Arc<Mutex<Vec<ImageContainer>>>, _pages_info: &PagesInfo, _drawing_area_ref: &DrawingArea) {
     if _window.is_fullscreen() {
         _window.unfullscreen();
         _window.set_show_menubar(true);
@@ -452,15 +452,14 @@ fn fullscreen(_window: &gtk::ApplicationWindow, _image_container_list: &std::rc:
 fn move_page(n: i32,
              _settings: &Settings,
              _drawing_area: &DrawingArea,
-             _image_container_list: &std::rc::Rc<std::cell::RefCell<Vec<ImageContainer>>>,
+             _image_container_list: &Arc<Mutex<Vec<ImageContainer>>>,
              _pages_info: &Arc<PagesInfo>) {
 
-    if n == 0 || _image_container_list.borrow().is_empty() {
+    if n == 0 || (*_image_container_list.lock().unwrap()).is_empty() {
         return;
     }
 
-    let size = _image_container_list.borrow().len();
-    // let _i = _pages_info.current_page_index.borrow().clone();
+    let size = (*_image_container_list.lock().unwrap()).len();
     let _i = _pages_info.current_page_index.lock().unwrap().clone();
     if _i == 0 && n < 0 {
         return;
@@ -501,7 +500,7 @@ impl MainWindow {
         let _result = MainWindow {
             window: _win,
             v_box: gtk::Box::new(gtk::Orientation::Vertical, 1),
-            image_container_list: std::rc::Rc::new(std::cell::RefCell::new(vec!())),
+            image_container_list: Arc::new(Mutex::new(vec!())),
             pages_info: std::sync::Arc::new(PagesInfo::default()),
             settings: std::sync::Arc::new(Settings::default()),
             scroll_window: gtk::ScrolledWindow::new(),
@@ -550,21 +549,20 @@ impl MainWindow {
             .valign(gtk::Align::Fill)
             .build();
         _drawing_area.set_draw_func(glib::clone!(@strong _image_container_list, @strong _pages_info, @strong _settings => move |area: &DrawingArea, ctx: &cairo::Context, _width: i32, _height: i32| {
-            if _image_container_list.borrow().is_empty() {
+            if (*_image_container_list.lock().unwrap()).is_empty() {
                 return;
             }
 
             if *_settings.is_dual_mode.lock().unwrap() {
-                draw_dual_page(&_image_container_list.borrow(), &_pages_info, &_settings, area, ctx);
+                draw_dual_page(&*_image_container_list.lock().unwrap(), &_pages_info, &_settings, area, ctx);
             } else {
-                draw_single_page(&_image_container_list.borrow(), &_pages_info, area, ctx);
+                draw_single_page(&*_image_container_list.lock().unwrap(), &_pages_info, area, ctx);
             }
         }));
 
         let _ = _drawing_area.connect_resize(glib::clone!(@strong _image_container_list, @strong _pages_info, @strong _settings => move|_drawing_area: &DrawingArea, _width: i32, _height: i32| {
-            if _image_container_list.borrow().is_empty() { return; }
+            if (*_image_container_list.lock().unwrap()).is_empty() { return; }
             
-            // let _index = _pages_info.current_page_index.as_ref().borrow().clone();
             let _index = _pages_info.current_page_index.lock().unwrap().clone();
             if *_settings.is_dual_mode.lock().unwrap() {
                 scale_page_for_dual(&_image_container_list, _index, _width, _height);
