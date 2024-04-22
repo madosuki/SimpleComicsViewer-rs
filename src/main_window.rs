@@ -17,10 +17,10 @@ use gtk::prelude::{ApplicationExt,
                    PopoverExt,
                    ActionMapExtManual,
                    MenuLinkIterExt,
+                   PixbufLoaderExt,
                    FileExt};
 use gtk::{Application, ApplicationWindow, Button, Allocation, DrawingArea, cairo, PopoverMenu, gio, glib, EventControllerKey};
-use gdk_pixbuf;
-use gdk_pixbuf::prelude::PixbufLoaderExt;
+use gtk::glib::{ControlFlow, Propagation};
 
 use anyhow::Result;
 
@@ -74,7 +74,7 @@ fn update_window_title(_window: &gtk::ApplicationWindow, _msg: &str) {
     _window.set_title(Some(&_new_title));
 }
 
-fn calc_margin_for_single(pixbuf_data: &gdk_pixbuf::Pixbuf, _target_width: i32, _target_height: i32) -> MarginData {
+fn calc_margin_for_single(pixbuf_data: &gtk::gdk_pixbuf::Pixbuf, _target_width: i32, _target_height: i32) -> MarginData {
     let _pic_height = pixbuf_data.height();
     let _pic_width = pixbuf_data.width();
 
@@ -100,7 +100,7 @@ fn calc_margin_for_single(pixbuf_data: &gdk_pixbuf::Pixbuf, _target_width: i32, 
     }
 }
 
-fn calc_margin_for_dual(_left: &gdk_pixbuf::Pixbuf, _right: &gdk_pixbuf::Pixbuf, _target_width: i32, _target_height: i32) -> MarginDataForDual {
+fn calc_margin_for_dual(_left: &gtk::gdk_pixbuf::Pixbuf, _right: &gtk::gdk_pixbuf::Pixbuf, _target_width: i32, _target_height: i32) -> MarginDataForDual {
     let _left_height = _left.height();
     let _left_width = _left.width();
     let _right_height = _right.height();
@@ -578,12 +578,12 @@ impl MainWindow {
             
             if state == gdk::ModifierType::ALT_MASK && keyval == gdk::Key::Return {
                 fullscreen(&_window, &_image_container_list, &_pages_info, &_drawing_area);
-                return gtk::Inhibit(true);
+                return Propagation::Stop;
             }
 
             if state == gdk::ModifierType::CONTROL_MASK && keyval == gdk::Key::o {
                 open_file_action(&_window, &_image_container_list, &_drawing_area, &_settings, &_pages_info);
-                return gtk::Inhibit(true);
+                return Propagation::Stop;
             }
 
             match keyval {
@@ -593,7 +593,7 @@ impl MainWindow {
                     } else {
                         move_page(1, &_settings, &_drawing_area, &_image_container_list, &_pages_info);
                     }
-                    gtk::Inhibit(true)
+                    Propagation::Stop
                 },
                 gdk::Key::Right => {
                     if *_settings.is_dual_mode.lock().unwrap() {
@@ -601,9 +601,9 @@ impl MainWindow {
                     } else {
                         move_page(-1, &_settings, &_drawing_area, &_image_container_list, &_pages_info);
                     }
-                    gtk::Inhibit(true)
+                    Propagation::Stop
                 },
-                _ => gtk::Inhibit(true)
+                _ => Propagation::Stop
             }
         }));
         self.window.add_controller(_event_controller_key);

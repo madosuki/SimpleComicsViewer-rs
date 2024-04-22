@@ -4,9 +4,7 @@ use std::cell::RefCell;
 
 use gtk4 as gtk;
 
-use gtk::prelude::{WidgetExt, FileExt};
-use gdk_pixbuf;
-use gdk_pixbuf::prelude::PixbufLoaderExt;
+use gtk::prelude::{WidgetExt, FileExt, PixbufLoaderExt};
 
 use crate::utils;
 
@@ -18,8 +16,8 @@ enum PictureDirectionType {
 
 #[derive(Default, Clone)]
 pub struct ImageContainer {
-    modified_pixbuf_data: RefCell<Option<gdk_pixbuf::Pixbuf>>,
-    orig_pixbuf_data: RefCell<Option<gdk_pixbuf::Pixbuf>>,
+    modified_pixbuf_data: RefCell<Option<gtk::gdk_pixbuf::Pixbuf>>,
+    orig_pixbuf_data: RefCell<Option<gtk::gdk_pixbuf::Pixbuf>>,
     // file_name: RefCell<Option<String>>,
 }
 
@@ -33,7 +31,7 @@ pub struct AspectRatioCollection {
 pub trait ImageContainerEx {
     fn set_pixbuf_from_file(&self, file: &gio::File, _window_width: i32, _window_height: i32);
     fn set_pixbuf_from_bytes(&self, bytes: &[u8], _window_width: i32, _window_height: i32);
-    fn get_modified_pixbuf_data(&self) -> Option<gdk_pixbuf::Pixbuf>;
+    fn get_modified_pixbuf_data(&self) -> Option<gtk::gdk_pixbuf::Pixbuf>;
     fn get_modified_width(&self) -> Option<i32>;
     fn get_modified_height(&self) -> Option<i32>;
     fn get_orig_width(&self) -> Option<i32>;
@@ -43,7 +41,7 @@ pub trait ImageContainerEx {
 
 
 impl ImageContainerEx for ImageContainer {
-    fn get_modified_pixbuf_data(&self) -> Option<gdk_pixbuf::Pixbuf> {
+    fn get_modified_pixbuf_data(&self) -> Option<gtk::gdk_pixbuf::Pixbuf> {
         let Some(v) = self.modified_pixbuf_data.borrow().clone() else {
             return None;
         };
@@ -145,7 +143,7 @@ impl ImageContainerEx for ImageContainer {
             }
         }
 
-        let Some(scaled) = pixbuf_data.scale_simple(_result_width, _result_height, gdk_pixbuf::InterpType::Bilinear) else { return };
+        let Some(scaled) = pixbuf_data.scale_simple(_result_width, _result_height, gtk::gdk_pixbuf::InterpType::Bilinear) else { return };
         let _ = self.modified_pixbuf_data.replace_with(|_| Some(scaled.clone()));
     }
 }
@@ -161,8 +159,8 @@ pub fn read_bytes_from_file_path(path_str: &str) -> Option<Vec<u8>> {
     }
 }
 
-pub fn create_pixbuf_from_bytes(bytes: &[u8]) -> Option<gdk_pixbuf::Pixbuf> {
-    let pixbuf_loader = gdk_pixbuf::PixbufLoader::new();
+pub fn create_pixbuf_from_bytes(bytes: &[u8]) -> Option<gtk::gdk_pixbuf::Pixbuf> {
+    let pixbuf_loader = gtk::gdk_pixbuf::PixbufLoader::new();
     let result_of_pixbuf_loader_write = pixbuf_loader.write(bytes);
     if result_of_pixbuf_loader_write.is_err() { return None }
 
@@ -177,12 +175,12 @@ pub fn create_pixbuf_from_bytes(bytes: &[u8]) -> Option<gdk_pixbuf::Pixbuf> {
 }
 
 
-pub fn create_pixbuf_from_file_path(path_str: String) -> Option<gdk_pixbuf::Pixbuf> {
+pub fn create_pixbuf_from_file_path(path_str: String) -> Option<gtk::gdk_pixbuf::Pixbuf> {
     let Some(buf) = read_bytes_from_file_path(&path_str) else {
         return None
     };
 
-    let pixbuf_loader = gdk_pixbuf::PixbufLoader::new();
+    let pixbuf_loader = gtk::gdk_pixbuf::PixbufLoader::new();
     let result_of_pixbuf_loader_write = pixbuf_loader.write(&buf);
     if result_of_pixbuf_loader_write.is_err() { return None };
 
@@ -198,13 +196,13 @@ pub fn create_pixbuf_from_file_path(path_str: String) -> Option<gdk_pixbuf::Pixb
     Some(pixbuf_data)
 }
 
-pub fn create_pixbuf_from_file(file: &gio::File) -> Option<gdk_pixbuf::Pixbuf> {
+pub fn create_pixbuf_from_file(file: &gio::File) -> Option<gtk::gdk_pixbuf::Pixbuf> {
     let Ok((bytes, _s)) = file.load_bytes(gio::Cancellable::NONE) else {
         return None
     };
 
     let buf: Vec<u8> = bytes.to_vec();
-    let pixbuf_loader = gdk_pixbuf::PixbufLoader::new();
+    let pixbuf_loader = gtk::gdk_pixbuf::PixbufLoader::new();
     let result_of_pixbuf_loader_write = pixbuf_loader.write(&buf);
     if result_of_pixbuf_loader_write.is_err() { return None };
 
