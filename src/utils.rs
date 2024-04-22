@@ -1,12 +1,17 @@
 use gtk4 as gtk;
 
-use gtk::prelude::{FileExt};
+use gtk::prelude::FileExt;
 
-pub fn get_value_with_option_from_ref_cell_option<T, R, F>(data: &std::cell::RefCell<Option<T>>, f: F) -> Option<R>
-where F: Fn(&T) -> R {
+pub fn get_value_with_option_from_ref_cell_option<T, R, F>(
+    data: &std::cell::RefCell<Option<T>>,
+    f: F,
+) -> Option<R>
+where
+    F: Fn(&T) -> R,
+{
     match data.borrow().as_ref() {
         Some(v) => Some(f(v)),
-        None => Option::None
+        None => Option::None,
     }
 }
 
@@ -51,10 +56,9 @@ pub fn detect_file_type_from_bytes(bytes: &[u8]) -> FileType {
 
 pub fn detect_file_type_from_file(file: &gio::File) -> FileType {
     let Ok((bytes, _s)) = file.load_bytes(gio::Cancellable::NONE) else {
-        return FileType::NONE
+        return FileType::NONE;
     };
 
     let tmp = bytes.to_vec();
     detect_file_type_from_bytes(&tmp)
 }
-

@@ -1,11 +1,11 @@
-mod main_window;
 mod image_container;
-mod utils;
 mod image_loader;
+mod main_window;
+mod utils;
 
-use gtk4 as gtk;
-use gtk::Application;
 use gio::prelude::{ApplicationExt, ApplicationExtManual};
+use gtk::Application;
+use gtk4 as gtk;
 
 fn main() -> glib::ExitCode {
     let app_id_str: &str = "com.simple_comics_viewer";
@@ -14,4 +14,3 @@ fn main() -> glib::ExitCode {
     app.connect_activate(main_window::activate);
     app.run()
 }
-
