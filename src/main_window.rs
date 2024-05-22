@@ -474,8 +474,12 @@ fn draw_dual_page(
     };
 
     if left_index >= image_container_list.len() {
-        let _ = ctx.set_source_surface(&surface_for_right, right_pos, 0.0);
-        let _ = ctx.set_source_pixbuf(&right, right_pos, 0.0);
+        // FIXME: refelect page dirction. current is only support right to left.
+        let margin = calc_margin_for_single(&right, area.allocated_width(), area.allocated_height());
+        let top_margin = f64::from(margin.top_margin);
+
+        let _ = ctx.set_source_surface(&surface_for_right, right_pos, top_margin);
+        let _ = ctx.set_source_pixbuf(&right, right_pos, top_margin);
         let _ = ctx.paint();
         return;
     }
