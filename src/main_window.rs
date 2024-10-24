@@ -253,33 +253,36 @@ fn open_and_set_image_from_zip(
     *pages_info.loaded_filename.lock().unwrap() = Some(file_name.to_owned());
     update_window_title(*window.lock().unwrap(), file_name);
 
-    let extracted = image_loader::load_from_compressed_file_to_memory(pathname).unwrap();
-
-    let mut count = 0;
-    extracted.into_iter().for_each(|v| {
-        let is_dual_model = settings.is_dual_mode.lock().unwrap();
-        if *is_dual_model {
-            set_page_from_bytes(
-                &v.value,
-                &image_container_list,
-                count,
-                drawing_area_ref.allocated_width(),
-                drawing_area_ref.allocated_height(),
-                *is_dual_model,
-            );
-        } else {
-            set_page_from_bytes(
-                &v.value,
-                &image_container_list,
-                count,
-                drawing_area_ref.allocated_width(),
-                drawing_area_ref.allocated_height(),
-                *is_dual_model,
-            );
-        }
-
-        count = count + 1;
-    });
+    match image_loader::load_from_compressed_file_to_memory(pathname) {
+        Ok(extracted) => {
+            let mut count = 0;
+            extracted.into_iter().for_each(|v| {
+                let is_dual_model = settings.is_dual_mode.lock().unwrap();
+                if *is_dual_model {
+                    set_page_from_bytes(
+                        &v.value,
+                        &image_container_list,
+                        count,
+                        drawing_area_ref.allocated_width(),
+                        drawing_area_ref.allocated_height(),
+                        *is_dual_model,
+                    );
+                } else {
+                    set_page_from_bytes(
+                        &v.value,
+                        &image_container_list,
+                        count,
+                        drawing_area_ref.allocated_width(),
+                        drawing_area_ref.allocated_height(),
+                        *is_dual_model,
+                    );
+                }
+                
+                count = count + 1;
+            });     
+        },
+        Err(_) => {return}
+    }
 }
 
 fn open_and_set_image(
