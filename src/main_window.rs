@@ -339,7 +339,7 @@ fn open_file_action(
         ],
     );
 
-    dialog.connect_response(glib::clone!(@weak window, @strong image_container_list, @strong pages_info, @strong drawing_area_ref, @strong settings => move |file_dialog, response| {
+    dialog.connect_response(glib::clone!(#[weak] window, #[strong] image_container_list, #[strong] pages_info, #[strong] drawing_area_ref, #[strong] settings, move |file_dialog, response| {
         if response == gtk::ResponseType::Ok {
             let Some(file) = file_dialog.file() else { return };
             let Some(path) = file.path() else { return };
@@ -396,13 +396,13 @@ fn create_action_entry_for_menu(
     settings: &std::sync::Arc<Settings>,
 ) -> Vec<gio::ActionEntry<gtk::Application>> {
     let file_action_entry: gio::ActionEntry<gtk::Application> = gio::ActionEntry::builder("file_open")
-        .activate(glib::clone!(@weak window, @strong image_container_list, @strong pages_info, @strong settings, @strong drawing_area_ref => move |_app: &gtk::Application, _action: &gio::SimpleAction, _user_data: Option<&glib::Variant>| {
+        .activate(glib::clone!(#[weak] window, #[strong] image_container_list, #[strong] pages_info, #[strong] settings, #[strong] drawing_area_ref, move |_app: &gtk::Application, _action: &gio::SimpleAction, _user_data: Option<&glib::Variant>| {
             open_file_action(&window, &image_container_list, &drawing_area_ref, &settings, &pages_info);
         }))
         .build();
 
     let quit_action_entry: gio::ActionEntry<gtk::Application> = gio::ActionEntry::builder("quit")
-        .activate(glib::clone!(@weak window => move |app: &gtk::Application, action: &gio::SimpleAction, user_data: Option<&glib::Variant>| {
+        .activate(glib::clone!(#[weak] window, move |app: &gtk::Application, action: &gio::SimpleAction, user_data: Option<&glib::Variant>| {
             app.quit();
     })).build();
 
@@ -655,7 +655,7 @@ impl MainWindow {
             .halign(gtk::Align::Fill)
             .valign(gtk::Align::Fill)
             .build();
-        drawing_area.set_draw_func(glib::clone!(@strong image_container_list, @strong pages_info, @strong settings => move |area: &DrawingArea, ctx: &cairo::Context, width: i32, height: i32| {
+        drawing_area.set_draw_func(glib::clone!(#[strong] image_container_list, #[strong] pages_info, #[strong] settings, move |area: &DrawingArea, ctx: &cairo::Context, width: i32, height: i32| {
             if (*image_container_list.lock().unwrap()).is_empty() {
                 return;
             }
@@ -667,7 +667,7 @@ impl MainWindow {
             }
         }));
 
-        let _ = drawing_area.connect_resize(glib::clone!(@strong image_container_list, @strong pages_info, @strong settings => move|drawing_area: &DrawingArea, width: i32, height: i32| {
+        let _ = drawing_area.connect_resize(glib::clone!(#[strong] image_container_list, #[strong] pages_info, #[strong] settings, move|drawing_area: &DrawingArea, width: i32, height: i32| {
             if (*image_container_list.lock().unwrap()).is_empty() { return; }
             
             let index = pages_info.current_page_index.lock().unwrap().clone();
@@ -679,7 +679,7 @@ impl MainWindow {
         }));
 
         let event_controller_key = EventControllerKey::builder().build();
-        let _ = event_controller_key.connect_key_pressed(glib::clone!(@strong window, @strong image_container_list, @strong pages_info, @strong settings, @strong drawing_area, @strong pages_info => move |event_controller_key: &EventControllerKey, keyval: gdk::Key, keycode: u32, state: gdk::ModifierType| {
+        let _ = event_controller_key.connect_key_pressed(glib::clone!(#[strong] window, #[strong] image_container_list, #[strong] pages_info, #[strong] settings, #[strong] drawing_area, #[strong] pages_info, move |event_controller_key: &EventControllerKey, keyval: gdk::Key, keycode: u32, state: gdk::ModifierType| {
             
             if state == gdk::ModifierType::ALT_MASK && keyval == gdk::Key::Return {
                 fullscreen(&window, &image_container_list, &pages_info, &drawing_area);
