@@ -293,19 +293,19 @@ fn open_and_set_image(
     settings: &Arc<Settings>,
     is_one: bool,
     window: &gtk::ApplicationWindow,
-) {
+) -> bool {
     match utils::detect_file_type_from_file(&file) {
-        utils::FileType::NONE => (),
+        utils::FileType::NONE => false,
         _ => {
             if is_one {
                 let Some(path) = file.path() else {
-                    return;
+                    return false;
                 };
                 let Some(file_name) = path.file_name() else {
-                    return;
+                    return false;
                 };
                 let Some(file_name_str) = file_name.to_str() else {
-                    return;
+                    return false;
                 };
                 update_window_title(window, file_name_str);
             }
@@ -318,6 +318,7 @@ fn open_and_set_image(
                 drawing_area_ref.allocated_height(),
                 *settings.is_dual_mode.lock().unwrap(),
             );
+            true
         }
     }
 }
@@ -358,23 +359,36 @@ fn open_file_action(
                 open_and_set_image_from_zip(&file, &image_container_list, &drawing_area_ref, &settings, &pages_info, &win);
             } else {
                 let Some(dir_path) = path.parent() else {
-                    open_and_set_image(&file, &image_container_list, &drawing_area_ref, 0, &settings, true, &window);
-                    drawing_area_ref.queue_draw();
+                    println!("Failed get parent directory from path");
                     return;
                 };
 
-                let Some(dir_path_str) = dir_path.to_str() else { return; };
+                let Some(dir_path_str) = dir_path.to_str() else {
+                    println!("Failed get dir path string");
+                    return;
+                };
                 update_window_title(&window, dir_path_str);
                 *pages_info.loaded_dirname.lock().unwrap() = Some(dir_path_str.to_owned());
 
                 let mut count: usize = 0;
-                for entry in dir_path.read_dir().expect("read_dir call failed") {
+                for entry in dir_path.read_dir().expect("Failed call read_dir") {
                     if let Ok(entry) = entry {
-                        if entry.file_type().unwrap().is_file() {
-                            let tmp_path = entry.path();
-                            let tmp_file = gio::File::for_path(&tmp_path);
-                            open_and_set_image(&tmp_file, &image_container_list, &drawing_area_ref, count, &settings, false, &window);
-                            count = count + 1;
+                        let e = entry.file_type();
+                        match entry.file_type() {
+                            Ok(v) => {
+                                if v.is_file() {
+                                    let tmp_path = entry.path();
+                                    let tmp_file = gio::File::for_path(&tmp_path);
+                                    let r = open_and_set_image(&tmp_file, &image_container_list, &drawing_area_ref, count, &settings, false, &window);
+                                    if r {
+                                        count = count + 1;
+                                    }
+                                }
+                            },
+                            Err(_) => {
+                                
+                         
+   }
                         }
                     }
                 }
