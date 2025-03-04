@@ -54,7 +54,7 @@ struct MainWindow {
     image_container_list: Arc<Mutex<Vec<ImageContainer>>>,
     pages_info: std::sync::Arc<PagesInfo>,
     settings: std::sync::Arc<Settings>,
-    scroll_window: gtk::ScrolledWindow,
+    view_window: gtk::ScrolledWindow,
 }
 
 fn update_window_title(window: &gtk::ApplicationWindow, _msg: &str) {
@@ -610,7 +610,7 @@ impl MainWindow {
             image_container_list: Arc::new(Mutex::new(vec![])),
             pages_info: std::sync::Arc::new(PagesInfo::default()),
             settings: std::sync::Arc::new(Settings::default()),
-            scroll_window: gtk::ScrolledWindow::new(),
+            view_window: gtk::ScrolledWindow::new(),
         };
 
         result
@@ -716,10 +716,10 @@ impl MainWindow {
         // let _scroll = gtk::ScrolledWindow::builder().child(&self.v_box).build();
         // _scroll.set_hexpand(true);
         // _scroll.set_vexpand(true);
-        self.scroll_window.set_hexpand(true);
-        self.scroll_window.set_vexpand(true);
-        self.scroll_window.set_halign(gtk::Align::Fill);
-        self.scroll_window.set_valign(gtk::Align::Fill);
+        self.view_window.set_hexpand(true);
+        self.view_window.set_vexpand(true);
+        self.view_window.set_halign(gtk::Align::Fill);
+        self.view_window.set_valign(gtk::Align::Fill);
 
         let drawing_area_ref = &drawing_area;
         let action_entry = create_action_entry_for_menu(
@@ -730,7 +730,7 @@ impl MainWindow {
             settings,
         );
         app.add_action_entries(action_entry);
-        self.scroll_window.set_child(Some(drawing_area_ref));
+        self.view_window.set_child(Some(drawing_area_ref));
         // self.v_box.set_halign(gtk::Align::Fill);
         // self.v_box.set_valign(gtk::Align::Fill);
         // self.v_box.set_hexpand(true);
@@ -738,7 +738,7 @@ impl MainWindow {
         // self.v_box.append(&_drawing_area);
 
         self.window.set_application(Some(app));
-        self.window.set_child(Some(&self.scroll_window));
+        self.window.set_child(Some(&self.view_window));
         Ok(())
     }
 
