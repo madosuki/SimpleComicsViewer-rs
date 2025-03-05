@@ -29,7 +29,7 @@ pub struct AspectRatioCollection {
 
 #[allow(dead_code)]
 pub trait ImageContainerEx {
-    fn set_pixbuf_from_file(&self, file: &gio::File, window_width: i32, window_height: i32);
+    fn set_pixbuf_from_file(&self, file: &gio::File);
     fn set_pixbuf_from_bytes(&self, bytes: &[u8]);
     fn get_modified_pixbuf_data(&self) -> Option<gtk::gdk_pixbuf::Pixbuf>;
     fn get_modified_width(&self) -> Option<i32>;
@@ -48,7 +48,7 @@ impl ImageContainerEx for ImageContainer {
         Some(v)
     }
 
-    fn set_pixbuf_from_file(&self, file: &gio::File, window_width: i32, window_height: i32) {
+    fn set_pixbuf_from_file(&self, file: &gio::File) {
         let Some(pixbuf_data) = create_pixbuf_from_file(file) else {
             return;
         };
