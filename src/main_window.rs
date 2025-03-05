@@ -696,7 +696,7 @@ impl MainWindow {
         }));
 
         let event_controller_key = EventControllerKey::builder().build();
-        let _ = event_controller_key.connect_key_pressed(glib::clone!(#[strong] window, #[strong] image_container_list, #[strong] pages_info, #[strong] settings, #[strong] drawing_area, #[strong] pages_info, move |event_controller_key: &EventControllerKey, keyval: gdk::Key, keycode: u32, state: gdk::ModifierType| {
+        let _ = event_controller_key.connect_key_pressed(glib::clone!(#[strong] app, #[strong] window, #[strong] image_container_list, #[strong] pages_info, #[strong] settings, #[strong] drawing_area, #[strong] pages_info, move |event_controller_key: &EventControllerKey, keyval: gdk::Key, keycode: u32, state: gdk::ModifierType| {
             
             if state == gdk::ModifierType::ALT_MASK && keyval == gdk::Key::Return {
                 fullscreen(&window, &image_container_list, &pages_info, &drawing_area);
@@ -712,6 +712,11 @@ impl MainWindow {
             let mut is_move = false;
             let mut additional_val = 0;
             match keyval {
+                gdk::Key::q => {
+                    if is_pressed_ctrl {
+                        app.quit();
+                    }
+                },
                 gdk::Key::Left => {
                     if *settings.is_dual_mode.lock().unwrap() {
                         // move_page(2, &settings, &drawing_area, &image_container_list, &pages_info);
