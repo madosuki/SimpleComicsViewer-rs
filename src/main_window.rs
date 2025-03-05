@@ -216,12 +216,12 @@ fn set_page_from_bytes(
     height: i32,
     is_dual_mode: bool,
 ) {
-    let image_container = ImageContainer::default();
+    // let image_container = ImageContainer::default();
 
-    (*image_container_list.lock().unwrap()).push(image_container);
+    // (*image_container_list.lock().unwrap()).push(image_container);
 
-    println!("{}, {}", width, height);
-    (*image_container_list.lock().unwrap())[page_index].set_pixbuf_from_bytes(bytes, width, height);
+    // println!("{}, {}", width, height);
+    // (*image_container_list.lock().unwrap())[page_index].set_pixbuf_from_bytes(bytes);
     if is_dual_mode {
         let half_width = width / 2;
         (*image_container_list.lock().unwrap())[page_index].scale(half_width, height, true);
@@ -230,56 +230,102 @@ fn set_page_from_bytes(
     }
 }
 
-fn open_and_set_image_from_zip(
-    file: &gio::File,
-    image_container_list: &Arc<Mutex<Vec<ImageContainer>>>,
-    drawing_area_ref: &DrawingArea,
-    settings: &Arc<Settings>,
-    pages_info: &Arc<PagesInfo>,
-    window: &Arc<Mutex<&gtk::ApplicationWindow>>,
-) {
+fn get_file_path_from_file_desc(file: &gio::File) -> Option<String> {
     let Some(pathbuf) = file.path() else {
-        return;
+        return None;
     };
     let Some(pathname) = pathbuf.as_path().to_str() else {
-        return;
+        return None;
     };
-    let Some(file_name_osstr) = pathbuf.file_name() else {
-        return;
-    };
-    let Some(file_name) = file_name_osstr.to_str() else {
-        return;
-    };
-    *pages_info.loaded_filename.lock().unwrap() = Some(file_name.to_owned());
-    update_window_title(*window.lock().unwrap(), file_name);
+    // let Some(file_name_osstr) = pathbuf.file_name() else {
+    //     return None;
+    // };
+    // let Some(file_name) = file_name_osstr.to_str() else {
+    //     return None;
+    // };
+
+    // Some(file_name.to_owned())
+    Some(pathname.to_owned())
+}
+
+fn set_page_from_image_container_list(
+    image_container_list: &Arc<Mutex<Vec<ImageContainer>>>,
+    settings: &Arc<Settings>,
+    drawing_area_ref: &DrawingArea,
+) {
+    let width = drawing_area_ref.allocated_width();
+    let height = drawing_area_ref.allocated_height();
+    let mut count = 0;
+    let image_container_list_ptr = image_container_list.lock().unwrap();
+    let is_dual_model = settings.is_dual_mode.lock().unwrap();
+    image_container_list_ptr.iter().for_each(|v| {
+        if *is_dual_model {
+            let half_width = width / 2;
+            image_container_list_ptr[count].scale(half_width, height, true);
+        } else {
+            image_container_list_ptr[count].scale(width, height, false);
+        }
+                
+        count = count + 1;
+    });
+}
+
+// drawing_area_ref: &DrawingArea,
+// window: &Arc<Mutex<&gtk::ApplicationWindow>>,
+// settings: &Arc<Settings>,
+// pages_info: &Arc<PagesInfo>,
+// file: &Arc<&gio::File>,
+async fn open_and_set_image_from_zip(
+    pathname: &String,
+    image_container_list: &Arc<Mutex<Vec<ImageContainer>>>,
+) {
+    // let Some(pathbuf) = file.path() else {
+    //     return;
+    // };
+    // let Some(pathname) = pathbuf.as_path().to_str() else {
+    //     return;
+    // };
+    // let Some(file_name_osstr) = pathbuf.file_name() else {
+    //     return;
+    // };
+    // let Some(file_name) = file_name_osstr.to_str() else {
+    //     return;
+    // };
+    // *pages_info.loaded_filename.lock().unwrap() = Some(file_name.to_owned());
+    // update_window_title(*window.lock().unwrap(), file_name);
 
     match image_loader::load_from_compressed_file_to_memory(pathname) {
         Ok(extracted) => {
-            let mut count = 0;
             extracted.into_iter().for_each(|v| {
-                let is_dual_model = settings.is_dual_mode.lock().unwrap();
-                if *is_dual_model {
-                    set_page_from_bytes(
-                        &v.value,
-                        &image_container_list,
-                        count,
-                        drawing_area_ref.allocated_width(),
-                        drawing_area_ref.allocated_height(),
-                        *is_dual_model,
-                    );
-                } else {
-                    set_page_from_bytes(
-                        &v.value,
-                        &image_container_list,
-                        count,
-                        drawing_area_ref.allocated_width(),
-                        drawing_area_ref.allocated_height(),
-                        *is_dual_model,
-                    );
-                }
+                let image_container = ImageContainer::default();
+                image_container.set_pixbuf_from_bytes(&v.value);
+                (*image_container_list.lock().unwrap()).push(image_container);
+            });
+            // let mut count = 0;
+            // extracted.into_iter().for_each(|v| {
+            //     let is_dual_model = settings.is_dual_mode.lock().unwrap();
+            //     if *is_dual_model {
+            //         set_page_from_bytes(
+            //             &v.value,
+            //             &image_container_list,
+            //             count,
+            //             drawing_area_ref.allocated_width(),
+            //             drawing_area_ref.allocated_height(),
+            //             *is_dual_model,
+            //         );
+            //     } else {
+            //         set_page_from_bytes(
+            //             &v.value,
+            //             &image_container_list,
+            //             count,
+            //             drawing_area_ref.allocated_width(),
+            //             drawing_area_ref.allocated_height(),
+            //             *is_dual_model,
+            //         );
+            //     }
                 
-                count = count + 1;
-            });     
+            //     count = count + 1;
+            // });     
         },
         Err(_) => {return}
     }
@@ -340,7 +386,8 @@ fn open_file_action(
         ],
     );
 
-    dialog.connect_response(glib::clone!(#[weak] window, #[strong] image_container_list, #[strong] pages_info, #[strong] drawing_area_ref, #[strong] settings, move |file_dialog, response| {
+    // glib::MainContext::default().spawn_local()
+    dialog.connect_response(glib::clone!(#[weak] window, #[strong] image_container_list, #[strong] pages_info, #[weak] drawing_area_ref, #[strong] settings, move |file_dialog, response| {
         if response == gtk::ResponseType::Ok {
             let Some(file) = file_dialog.file() else { return };
             let Some(path) = file.path() else { return };
@@ -355,8 +402,26 @@ fn open_file_action(
             (*image_container_list.lock().unwrap()).clear();
             *pages_info.current_page_index.lock().unwrap() = 0;
             if is_zip {
-                let win = Arc::new(Mutex::new(&window));
-                open_and_set_image_from_zip(&file, &image_container_list, &drawing_area_ref, &settings, &pages_info, &win);
+                // let win = Arc::new(Mutex::new(&window));
+                // open_and_set_image_from_zip(&file, &image_container_list, &drawing_area_ref, &settings, &pages_info, &win);
+                let pathname = get_file_path_from_file_desc(&file).unwrap();
+                glib::spawn_future_local(glib::clone!(#[strong] image_container_list, #[strong] settings, #[weak] drawing_area_ref, async move {
+                    println!("n");
+                    println!("{}", &pathname);
+                    open_and_set_image_from_zip(&pathname, &image_container_list).await;
+                    println!("img container list len: {}", image_container_list.lock().unwrap().len());
+                    glib::idle_add_local_once(glib::clone!(#[strong] image_container_list, #[strong] settings, #[weak] drawing_area_ref, move || {
+                        set_page_from_image_container_list(&image_container_list, &settings, &drawing_area_ref);
+                        drawing_area_ref.queue_draw();
+                    }));
+                }));
+                // glib::MainContext::default().spawn_local(glib::clone!(async move || {
+                //     // open_and_set_image_from_zip(&pathname, &image_container_list_clone).await;
+                //     println!("nyan");
+                //     // glib::idle_add_local_once(glib::clone!(#[strong] image_container_list, #[strong] settings, #[weak] drawing_area_ref, move || {
+                //     //    set_page_from_image_container_list(&image_container_list, &settings, &drawing_area_ref); 
+                //     // }));
+                // }));
             } else {
                 let Some(dir_path) = path.parent() else {
                     println!("Failed get parent directory from path");
@@ -388,13 +453,12 @@ fn open_file_action(
                             Err(_) => {
                                 
                          
-   }
+                            }
                         }
                     }
                 }
+                drawing_area_ref.queue_draw();
             }
-            drawing_area_ref.queue_draw();
-            
         }
         file_dialog.close();
     }));
