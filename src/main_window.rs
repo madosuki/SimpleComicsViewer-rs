@@ -165,22 +165,23 @@ fn scale_page_for_dual(
         return;
     }
 
-    if (*image_container_list.lock().unwrap()).is_empty() {
+    let image_container_list_ptr = image_container_list.lock().unwrap();
+    if image_container_list_ptr.is_empty() {
         return;
     }
 
     let next_index = current_page_index + 1;
-    let _image_container_list_len = (*image_container_list.lock().unwrap()).len();
+    let _image_container_list_len = image_container_list_ptr.len();
 
     let final_target_width = target_width / 2;
-    (*image_container_list.lock().unwrap())[current_page_index].scale(
+    image_container_list_ptr[current_page_index].scale(
         final_target_width,
         target_height,
         true,
     );
 
-    if next_index != _image_container_list_len {
-        (*image_container_list.lock().unwrap())[next_index].scale(
+    if next_index < _image_container_list_len {
+        image_container_list_ptr[next_index].scale(
             final_target_width,
             target_height,
             true,
@@ -241,19 +242,13 @@ fn set_page_from_image_container_list(
 ) {
     let width = drawing_area_ref.allocated_width();
     let height = drawing_area_ref.allocated_height();
-    let mut count = 0;
-    let image_container_list_ptr = image_container_list.lock().unwrap();
+    let count = 0;
     let is_dual_model = settings.is_dual_mode.lock().unwrap();
-    image_container_list_ptr.iter().for_each(|v| {
-        if *is_dual_model {
-            let half_width = width / 2;
-            image_container_list_ptr[count].scale(half_width, height, true);
-        } else {
-            image_container_list_ptr[count].scale(width, height, false);
-        }
-                
-        count = count + 1;
-    });
+    if *is_dual_model {
+        scale_page_for_dual(image_container_list, count, width, height);
+    } else {
+        scale_page_for_single(image_container_list, count, width, height);
+    }
 }
 
 async fn open_and_set_image_to_image_container_from_zip(
