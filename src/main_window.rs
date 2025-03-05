@@ -705,25 +705,74 @@ impl MainWindow {
                 return Propagation::Stop;
             }
 
+            let is_pressed_ctrl = state == gdk::ModifierType::CONTROL_MASK;
+            let mut is_move = false;
+            let mut additional_val = 0;
             match keyval {
                 gdk::Key::Left => {
                     if *settings.is_dual_mode.lock().unwrap() {
-                        move_page(2, &settings, &drawing_area, &image_container_list, &pages_info);
+                        // move_page(2, &settings, &drawing_area, &image_container_list, &pages_info);
+                        // when right to left mode
+                        additional_val = 2;
                     } else {
-                        move_page(1, &settings, &drawing_area, &image_container_list, &pages_info);
+                        // move_page(1, &settings, &drawing_area, &image_container_list, &pages_info);
+                        additional_val = 1;
                     }
-                    Propagation::Stop
+                    is_move = true;
+                },
+                gdk::Key::h => {
+                    if *settings.is_dual_mode.lock().unwrap() {
+                        additional_val = 2;
+                    } else {
+                        additional_val = 1;
+                    }
+                    is_move = true;
+                },
+                gdk::Key::b => {
+                    if is_pressed_ctrl {
+                        if *settings.is_dual_mode.lock().unwrap() {
+                            additional_val = 2;
+                        } else {
+                            additional_val = 1;
+                        }
+                        is_move = true;
+                    }
                 },
                 gdk::Key::Right => {
                     if *settings.is_dual_mode.lock().unwrap() {
-                        move_page(-2, &settings, &drawing_area, &image_container_list, &pages_info);
+                        // move_page(-2, &settings, &drawing_area, &image_container_list, &pages_info);
+                        // when right to left mode
+                        additional_val = -2;
                     } else {
-                        move_page(-1, &settings, &drawing_area, &image_container_list, &pages_info);
+                        // move_page(-1, &settings, &drawing_area, &image_container_list, &pages_info);
+                        additional_val = -1;
                     }
-                    Propagation::Stop
+                    is_move = true;
                 },
-                _ => Propagation::Stop
+                gdk::Key::l => {
+                    if *settings.is_dual_mode.lock().unwrap() {
+                        additional_val = -1;
+                    } else {
+                        additional_val = -1;
+                    }
+                    is_move = true;
+                },
+                gdk::Key::f => {
+                    if is_pressed_ctrl {
+                        if *settings.is_dual_mode.lock().unwrap() {
+                            additional_val = -2;
+                        } else {
+                            additional_val = -1;
+                        }
+                        is_move = true;
+                    }
+                },
+                _ => is_move = false
             }
+            if is_move {
+                move_page(additional_val, &settings, &drawing_area, &image_container_list, &pages_info);
+            }
+            Propagation::Stop
         }));
         self.window.add_controller(event_controller_key);
 
