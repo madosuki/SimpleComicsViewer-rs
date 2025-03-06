@@ -683,7 +683,7 @@ impl MainWindow {
             }
         }));
 
-        let _ = drawing_area.connect_resize(glib::clone!(#[strong] image_container_list, #[strong] pages_info, #[strong] settings, move|drawing_area: &DrawingArea, width: i32, height: i32| {
+        let _ = drawing_area.connect_resize(glib::clone!(#[strong] image_container_list, #[strong] pages_info, #[strong] settings, move|_drawing_area: &DrawingArea, width: i32, height: i32| {
             if (*image_container_list.lock().unwrap()).is_empty() { return; }
             
             let index = pages_info.current_page_index.lock().unwrap().clone();
@@ -695,7 +695,7 @@ impl MainWindow {
         }));
 
         let event_controller_key = EventControllerKey::builder().build();
-        let _ = event_controller_key.connect_key_pressed(glib::clone!(#[strong] app, #[strong] window, #[strong] image_container_list, #[strong] pages_info, #[strong] settings, #[strong] drawing_area, #[strong] pages_info, move |event_controller_key: &EventControllerKey, keyval: gdk::Key, keycode: u32, state: gdk::ModifierType| {
+        let _ = event_controller_key.connect_key_pressed(glib::clone!(#[strong] app, #[strong] window, #[strong] image_container_list, #[strong] pages_info, #[strong] settings, #[strong] drawing_area, #[strong] pages_info, move |_event_controller_key: &EventControllerKey, keyval: gdk::Key, _keycode: u32, state: gdk::ModifierType| {
             
             if state == gdk::ModifierType::ALT_MASK && keyval == gdk::Key::Return {
                 fullscreen(&window, &image_container_list, &pages_info, &drawing_area);
@@ -718,11 +718,9 @@ impl MainWindow {
                 },
                 gdk::Key::Left => {
                     if *settings.is_dual_mode.lock().unwrap() {
-                        // move_page(2, &settings, &drawing_area, &image_container_list, &pages_info);
                         // when right to left mode
                         additional_val = 2;
                     } else {
-                        // move_page(1, &settings, &drawing_area, &image_container_list, &pages_info);
                         additional_val = 1;
                     }
                     is_move = true;
@@ -747,11 +745,9 @@ impl MainWindow {
                 },
                 gdk::Key::Right => {
                     if *settings.is_dual_mode.lock().unwrap() {
-                        // move_page(-2, &settings, &drawing_area, &image_container_list, &pages_info);
                         // when right to left mode
                         additional_val = -2;
                     } else {
-                        // move_page(-1, &settings, &drawing_area, &image_container_list, &pages_info);
                         additional_val = -1;
                     }
                     is_move = true;
@@ -783,9 +779,6 @@ impl MainWindow {
         }));
         self.window.add_controller(event_controller_key);
 
-        // let _scroll = gtk::ScrolledWindow::builder().child(&self.v_box).build();
-        // _scroll.set_hexpand(true);
-        // _scroll.set_vexpand(true);
         self.view_window.set_hexpand(true);
         self.view_window.set_vexpand(true);
         self.view_window.set_halign(gtk::Align::Fill);
@@ -801,14 +794,16 @@ impl MainWindow {
         );
         app.add_action_entries(action_entry);
         self.view_window.set_child(Some(drawing_area_ref));
-        // self.v_box.set_halign(gtk::Align::Fill);
-        // self.v_box.set_valign(gtk::Align::Fill);
-        // self.v_box.set_hexpand(true);
-        // self.v_box.set_vexpand(true);
-        // self.v_box.append(&_drawing_area);
+        
+        self.v_box.set_halign(gtk::Align::Fill);
+        self.v_box.set_valign(gtk::Align::Fill);
+        self.v_box.set_hexpand(true);
+        self.v_box.set_vexpand(true);
+        self.v_box.append(&self.view_window);
 
         self.window.set_application(Some(app));
-        self.window.set_child(Some(&self.view_window));
+        // self.window.set_child(Some(&self.view_window));
+        self.window.set_child(Some(&self.v_box));
         Ok(())
     }
 
