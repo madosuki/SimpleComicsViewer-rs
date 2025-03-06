@@ -274,7 +274,6 @@ fn open_and_set_image_to_image_container_from_file(
     file: &gio::File,
     image_container_list: &Arc<Mutex<Vec<ImageContainer>>>,
     page_index: usize,
-    settings: &Arc<Settings>,
 ) -> bool {
     match utils::detect_file_type_from_file(&file) {
         utils::FileType::NONE => false,
@@ -288,7 +287,6 @@ fn open_and_set_image_to_image_container_from_file(
 async fn read_dir_and_set_images(
     file: &gio::File,
     image_container_list: &Arc<Mutex<Vec<ImageContainer>>>,
-    settings: &Arc<Settings>,
 ) -> bool {
     let Some(path) =  file.path() else {
         return false;
@@ -299,13 +297,12 @@ async fn read_dir_and_set_images(
     let mut count: usize = 0;
     for entry in dir_path.read_dir().expect("Failed call read_dir") {
         if let Ok(entry) = entry {
-            let e = entry.file_type();
             match entry.file_type() {
                 Ok(v) => {
                     if v.is_file() {
                         let tmp_path = entry.path();
                         let tmp_file = gio::File::for_path(&tmp_path);
-                        let r = open_and_set_image_to_image_container_from_file(&tmp_file, &image_container_list, count, &settings);
+                        let r = open_and_set_image_to_image_container_from_file(&tmp_file, &image_container_list, count);
                         if r {
                             count = count + 1;
                         }
@@ -386,7 +383,7 @@ fn open_file_action(
 
                 glib::spawn_future_local(glib::clone!(#[weak] window, #[strong] image_container_list, #[strong] settings, #[weak] drawing_area_ref, #[strong] pages_info, async move {
 
-                    let r = read_dir_and_set_images(&file, &image_container_list, &settings).await;
+                    let r = read_dir_and_set_images(&file, &image_container_list).await;
                     if !r {
                         return;
                     }

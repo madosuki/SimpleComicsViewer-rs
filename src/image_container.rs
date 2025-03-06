@@ -118,8 +118,8 @@ impl ImageContainerEx for ImageContainer {
         let tmp_target_height = target_height as f64;
 
         let aspect_ratio = calc_aspect_raito(width, height);
-        let mut result_height: i32 = 0;
-        let mut result_width: i32 = 0;
+        let mut result_height = 0;
+        let mut result_width = 0;
 
         if is_dual_mode {
             result_height = (tmp_target_width / aspect_ratio.for_width).ceil() as i32;
