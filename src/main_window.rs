@@ -555,9 +555,6 @@ fn draw_dual_page(
 
 fn fullscreen(
     window: &gtk::ApplicationWindow,
-    image_container_list: &Arc<Mutex<Vec<ImageContainer>>>,
-    pages_info: &PagesInfo,
-    drawing_area_ref: &DrawingArea,
 ) {
     if window.is_fullscreen() {
         window.unfullscreen();
@@ -698,7 +695,7 @@ impl MainWindow {
         let _ = event_controller_key.connect_key_pressed(glib::clone!(#[strong] app, #[strong] window, #[strong] image_container_list, #[strong] pages_info, #[strong] settings, #[strong] drawing_area, #[strong] pages_info, move |_event_controller_key: &EventControllerKey, keyval: gdk::Key, _keycode: u32, state: gdk::ModifierType| {
             
             if state == gdk::ModifierType::ALT_MASK && keyval == gdk::Key::Return {
-                fullscreen(&window, &image_container_list, &pages_info, &drawing_area);
+                fullscreen(&window);
                 return Propagation::Stop;
             }
 
