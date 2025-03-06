@@ -15,7 +15,6 @@ use gtk::{
 
 use anyhow::Result;
 
-use std::borrow::Borrow;
 use std::sync::Arc;
 use std::sync::Mutex;
 
@@ -58,12 +57,12 @@ struct MainWindow {
     view_window: gtk::ScrolledWindow,
 }
 
-fn update_window_title(window: &gtk::ApplicationWindow, _msg: &str) {
-    let Some(title) = window.title() else {
+fn update_window_title(window: &gtk::ApplicationWindow, title_text: &str) {
+    let Some(_) = window.title() else {
         return;
     };
 
-    let new_title = format!("Simple Comics Viewer: {}", _msg);
+    let new_title = format!("Simple Comics Viewer: {}", title_text);
     window.set_title(Some(&new_title));
 }
 
