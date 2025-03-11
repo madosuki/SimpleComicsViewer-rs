@@ -1,7 +1,7 @@
 use gdk4 as gdk;
 use gtk4 as gtk;
 
-use gtk::glib::{ControlFlow, Propagation};
+use gtk::glib::Propagation;
 use gtk::prelude::{
     ActionMapExtManual, ApplicationExt, ApplicationWindowExt, BoxExt, DialogExt, DrawingAreaExt,
     DrawingAreaExtManual, FileChooserExt, FileChooserExtManual, FileExt, GdkCairoContextExt,
@@ -9,8 +9,8 @@ use gtk::prelude::{
     PopoverExt, SurfaceExt, WidgetExt,
 };
 use gtk::{
-    cairo, gio, glib, Allocation, Application, ApplicationWindow, Button, DrawingArea,
-    EventControllerKey, PopoverMenu,
+    cairo, gio, glib, Application, ApplicationWindow, DrawingArea,
+    EventControllerKey,
 };
 
 use anyhow::Result;
@@ -337,6 +337,12 @@ fn open_file_action(
         ],
     );
 
+    let file_filter = gtk::FileFilter::new();
+    file_filter.add_pattern("*.zip");
+    file_filter.add_pattern("*.jpg");
+    file_filter.add_pattern("*.png");
+    dialog.add_filter(&file_filter);
+
     dialog.connect_response(glib::clone!(#[weak] window, #[strong] image_container_list, #[strong] pages_info, #[weak] drawing_area_ref, #[strong] settings, move |file_dialog, response| {
         if response == gtk::ResponseType::Ok {
             let Some(file) = file_dialog.file() else { return };
@@ -354,8 +360,16 @@ fn open_file_action(
             if is_zip {
                 let pathname = get_file_path_from_file_desc(&file).unwrap();
                 glib::spawn_future_local(glib::clone!(#[weak] window, #[strong] image_container_list, #[strong] settings, #[weak] drawing_area_ref, #[strong] pages_info, async move {
+                    update_window_title(&window, "Now Loading...");
+                    
+                    
                     let r = open_and_set_image_to_image_container_from_zip(&pathname, &image_container_list).await;
                     if !r {
+                        return;
+                    }
+
+                    if image_container_list.lock().unwrap().len() < 1 {
+                        update_window_title(&window, "Failed");
                         return;
                     }
 
@@ -382,6 +396,7 @@ fn open_file_action(
                 *pages_info.loaded_dirname.lock().unwrap() = Some(dir_path_str.to_owned());
 
                 glib::spawn_future_local(glib::clone!(#[weak] window, #[strong] image_container_list, #[strong] settings, #[weak] drawing_area_ref, #[strong] pages_info, async move {
+                    update_window_title(&window, "Now Loading...");
 
                     let r = read_dir_and_set_images(&file, &image_container_list).await;
                     if !r {
@@ -398,6 +413,7 @@ fn open_file_action(
         file_dialog.close();
     }));
 
+    
     dialog.show();
 }
 
