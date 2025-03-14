@@ -4,6 +4,7 @@ Currenlty status: WIP. But can read jpg and png and zip(jpg, png).
 ### Depends List
 - **[GTK4](https://crates.io/crates/gtk4)**
 - **[libarchive](https://www.libarchive.org/)**
+- **[libarchive_extractor-rs](https://github.com/madosuki/libarchive_extractor-rs)**
   
 ### Supported file format
 - **Single File**
