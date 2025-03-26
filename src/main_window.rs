@@ -324,6 +324,7 @@ fn open_file_action(
     window: &gtk::ApplicationWindow,
     image_container_list: &Arc<Mutex<Vec<ImageContainer>>>,
     drawing_area_ref: &DrawingArea,
+    pages_bar: &gtk::ProgressBar,
     settings: &Arc<Settings>,
     pages_info: &Arc<PagesInfo>,
 ) {
@@ -343,7 +344,7 @@ fn open_file_action(
     file_filter.add_pattern("*.png");
     dialog.add_filter(&file_filter);
 
-    dialog.connect_response(glib::clone!(#[weak] window, #[strong] image_container_list, #[strong] pages_info, #[weak] drawing_area_ref, #[strong] settings, move |file_dialog, response| {
+    dialog.connect_response(glib::clone!(#[weak] window, #[strong] image_container_list, #[strong] pages_info, #[weak] drawing_area_ref, #[weak] pages_bar,  #[strong] settings, move |file_dialog, response| {
         if response == gtk::ResponseType::Ok {
             let Some(file) = file_dialog.file() else { return };
             let Some(path) = file.path() else { return };
@@ -377,8 +378,11 @@ fn open_file_action(
                     update_window_title(&window, &pathname);
 
                     
-                    glib::idle_add_local_once(glib::clone!(#[strong] image_container_list, #[strong] settings, #[weak] drawing_area_ref, move || {
+                    glib::idle_add_local_once(glib::clone!(#[strong] image_container_list, #[strong] settings, #[weak] drawing_area_ref, #[weak] pages_bar, move || {
                         set_page_from_image_container_list(&image_container_list, &settings, &drawing_area_ref);
+                        pages_bar.set_fraction(0.0);
+                        pages_bar.set_inverted(true);
+                        pages_bar.show();
                         drawing_area_ref.queue_draw();
                     }));
                 }));
@@ -422,11 +426,13 @@ fn create_action_entry_for_menu(
     image_container_list: &Arc<Mutex<Vec<ImageContainer>>>,
     pages_info: &Arc<PagesInfo>,
     drawing_area_ref: &DrawingArea,
+    pages_bar: &gtk::ProgressBar,
     settings: &std::sync::Arc<Settings>,
 ) -> Vec<gio::ActionEntry<gtk::Application>> {
     let file_action_entry: gio::ActionEntry<gtk::Application> = gio::ActionEntry::builder("file_open")
-        .activate(glib::clone!(#[weak] window, #[strong] image_container_list, #[strong] pages_info, #[strong] settings, #[strong] drawing_area_ref, move |_app: &gtk::Application, _action: &gio::SimpleAction, _user_data: Option<&glib::Variant>| {
-            open_file_action(&window, &image_container_list, &drawing_area_ref, &settings, &pages_info);
+        .activate(glib::clone!(#[weak] window, #[strong] image_container_list,
+            #[strong] pages_info, #[strong] settings, #[strong] drawing_area_ref, #[weak] pages_bar, move |_app: &gtk::Application, _action: &gio::SimpleAction, _user_data: Option<&glib::Variant>| {
+                open_file_action(&window, &image_container_list, &drawing_area_ref, &pages_bar, &settings, &pages_info);
         }))
         .build();
 
@@ -582,6 +588,7 @@ fn move_page(
     n: i32,
     settings: &Settings,
     drawing_area: &DrawingArea,
+    pages_bar: &gtk::ProgressBar,
     image_container_list: &Arc<Mutex<Vec<ImageContainer>>>,
     pages_info: &Arc<PagesInfo>,
 ) {
@@ -589,6 +596,7 @@ fn move_page(
         return;
     }
 
+    let is_dual = *settings.is_dual_mode.lock().unwrap();
     let size = (*image_container_list.lock().unwrap()).len();
     let i = pages_info.current_page_index.lock().unwrap().clone();
     if i == 0 && n < 0 {
@@ -607,6 +615,20 @@ fn move_page(
     if result >= size {
         result = size - 1;
     }
+
+    let step_of_result = if is_dual { 2 } else { 1 };
+    let tmp_step_left = if is_dual { (result + step_of_result) as f64 } else { (result + 1) as f64 };
+    let tmp_step_right = size as f64;
+    let step = if (result + step_of_result) >= size {
+        1.0
+    } else if result == 0 {
+        0.0
+    } else {
+        tmp_step_left / tmp_step_right
+    };
+    // println!("result: {}", result);
+    // println!("step: ${}", step);
+    pages_bar.set_fraction(step);
 
     // _pages_info.current_page_index.replace(_result);
     *pages_info.current_page_index.lock().unwrap() = result;
@@ -675,6 +697,12 @@ impl MainWindow {
         // let _popover_menu_bar = gtk::PopoverMenuBar::from_model(Some(&_menu_model));
         // let _menu_button = gtk::MenuButton::builder().label("M").build();
 
+        let pages_bar = gtk::ProgressBar::builder()
+            .text("ProgressBar")
+            .show_text(true)
+            .build();
+        pages_bar.hide();
+
         let drawing_area = gtk::DrawingArea::builder()
             .hexpand_set(true)
             .vexpand_set(true)
@@ -705,7 +733,7 @@ impl MainWindow {
         }));
 
         let event_controller_key = EventControllerKey::builder().build();
-        let _ = event_controller_key.connect_key_pressed(glib::clone!(#[strong] app, #[strong] window, #[strong] image_container_list, #[strong] pages_info, #[strong] settings, #[strong] drawing_area, #[strong] pages_info, move |_event_controller_key: &EventControllerKey, keyval: gdk::Key, _keycode: u32, state: gdk::ModifierType| {
+        let _ = event_controller_key.connect_key_pressed(glib::clone!(#[strong] app, #[strong] window, #[strong] image_container_list, #[strong] pages_info, #[strong] settings, #[strong] drawing_area, #[strong] pages_bar, #[strong] pages_info, move |_event_controller_key: &EventControllerKey, keyval: gdk::Key, _keycode: u32, state: gdk::ModifierType| {
             
             if state == gdk::ModifierType::ALT_MASK && keyval == gdk::Key::Return {
                 fullscreen(&window);
@@ -713,7 +741,7 @@ impl MainWindow {
             }
 
             if state == gdk::ModifierType::CONTROL_MASK && keyval == gdk::Key::o {
-                open_file_action(&window, &image_container_list, &drawing_area, &settings, &pages_info);
+                open_file_action(&window, &image_container_list, &drawing_area, &pages_bar, &settings, &pages_info);
                 return Propagation::Stop;
             }
 
@@ -783,7 +811,7 @@ impl MainWindow {
                 _ => is_move = false
             }
             if is_move {
-                move_page(additional_val, &settings, &drawing_area, &image_container_list, &pages_info);
+                move_page(additional_val, &settings, &drawing_area, &pages_bar, &image_container_list, &pages_info);
             }
             Propagation::Stop
         }));
@@ -795,21 +823,24 @@ impl MainWindow {
         self.view_window.set_valign(gtk::Align::Fill);
 
         let drawing_area_ref = &drawing_area;
+        let pages_bar_ref = &pages_bar;
         let action_entry = create_action_entry_for_menu(
             window,
             image_container_list,
             pages_info,
             drawing_area_ref,
+            pages_bar_ref,
             settings,
         );
         app.add_action_entries(action_entry);
         self.view_window.set_child(Some(drawing_area_ref));
-        
+
         self.v_box.set_halign(gtk::Align::Fill);
         self.v_box.set_valign(gtk::Align::Fill);
         self.v_box.set_hexpand(true);
         self.v_box.set_vexpand(true);
         self.v_box.append(&self.view_window);
+        self.v_box.append(pages_bar_ref);
 
         self.window.set_application(Some(app));
         // self.window.set_child(Some(&self.view_window));
