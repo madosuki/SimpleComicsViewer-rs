@@ -574,13 +574,16 @@ fn draw_dual_page(
 
 fn fullscreen(
     window: &gtk::ApplicationWindow,
+    pages_bar: &gtk::ProgressBar,
 ) {
     if window.is_fullscreen() {
         window.unfullscreen();
         window.set_show_menubar(true);
+        pages_bar.show();
     } else {
         window.fullscreen();
         window.set_show_menubar(false);
+        pages_bar.hide();
     }
 }
 
@@ -736,7 +739,7 @@ impl MainWindow {
         let _ = event_controller_key.connect_key_pressed(glib::clone!(#[strong] app, #[strong] window, #[strong] image_container_list, #[strong] pages_info, #[strong] settings, #[strong] drawing_area, #[strong] pages_bar, #[strong] pages_info, move |_event_controller_key: &EventControllerKey, keyval: gdk::Key, _keycode: u32, state: gdk::ModifierType| {
             
             if state == gdk::ModifierType::ALT_MASK && keyval == gdk::Key::Return {
-                fullscreen(&window);
+                fullscreen(&window, &pages_bar);
                 return Propagation::Stop;
             }
 
