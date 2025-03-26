@@ -701,8 +701,6 @@ impl MainWindow {
         // let _menu_button = gtk::MenuButton::builder().label("M").build();
 
         let pages_bar = gtk::ProgressBar::builder()
-            .text("ProgressBar")
-            .show_text(true)
             .build();
         pages_bar.hide();
 
