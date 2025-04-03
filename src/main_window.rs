@@ -382,7 +382,7 @@ fn open_file_action(
                         set_page_from_image_container_list(&image_container_list, &settings, &drawing_area_ref);
                         pages_bar.set_fraction(0.0);
                         pages_bar.set_inverted(true);
-                        pages_bar.show();
+                        // pages_bar.show();
                         drawing_area_ref.queue_draw();
                     }));
                 }));
@@ -632,6 +632,14 @@ fn move_page(
     // println!("result: {}", result);
     // println!("step: ${}", step);
     pages_bar.set_fraction(step);
+    pages_bar.show();
+
+    glib::spawn_future_local(glib::clone!(#[weak] pages_bar, async move {
+        glib::timeout_add_local(std::time::Duration::from_secs(2), move || {
+            pages_bar.hide();
+            glib::ControlFlow::Break
+        });
+    }));
 
     // _pages_info.current_page_index.replace(_result);
     *pages_info.current_page_index.lock().unwrap() = result;
@@ -703,6 +711,7 @@ impl MainWindow {
         let pages_bar = gtk::ProgressBar::builder()
             .build();
         pages_bar.hide();
+        pages_bar.set_valign(gtk::Align::End);
 
         let drawing_area = gtk::DrawingArea::builder()
             .hexpand_set(true)
@@ -836,16 +845,22 @@ impl MainWindow {
         app.add_action_entries(action_entry);
         self.view_window.set_child(Some(drawing_area_ref));
 
+        let overlay = gtk::Overlay::new();
+        overlay.set_child(Some(&self.view_window));
+        overlay.add_overlay(pages_bar_ref);
+
+
         self.v_box.set_halign(gtk::Align::Fill);
         self.v_box.set_valign(gtk::Align::Fill);
         self.v_box.set_hexpand(true);
         self.v_box.set_vexpand(true);
-        self.v_box.append(&self.view_window);
-        self.v_box.append(pages_bar_ref);
+        self.v_box.append(&overlay);
 
         self.window.set_application(Some(app));
         // self.window.set_child(Some(&self.view_window));
+        // self.window.set_child(Some(&self.v_box));
         self.window.set_child(Some(&self.v_box));
+
         Ok(())
     }
 
