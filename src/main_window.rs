@@ -802,7 +802,7 @@ impl MainWindow {
                 },
                 gdk::Key::l => {
                     if *settings.is_dual_mode.lock().unwrap() {
-                        additional_val = -1;
+                        additional_val = -2;
                     } else {
                         additional_val = -1;
                     }
