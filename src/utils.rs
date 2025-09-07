@@ -1,6 +1,9 @@
+use gdk4::{ffi::GdkDisplay, prelude::DisplayExt, Monitor};
+use glib::object::Cast;
 use gtk4 as gtk;
 
 use gtk::prelude::FileExt;
+use gtk::prelude::MonitorExt;
 
 pub fn get_value_with_option_from_ref_cell_option<T, R, F>(
     data: &std::cell::RefCell<Option<T>>,
@@ -15,16 +18,53 @@ where
     }
 }
 
+pub fn get_dpi() -> f32 {
+    let mut ppi = 144.0f32;
+    let display = gtk::gdk::Display::default().unwrap();
+    let monitors = display.monitors();
+    for monitor in monitors.into_iter() {
+        let pre_m = monitor.expect("faild get monitor from monitors iter.");
+        let m = pre_m.downcast::<gtk::gdk::Monitor>().expect("failed downcast from object to Monitor");
+        let geometry = m.geometry();
+        let width_pixel = geometry.width();
+        let height_pixel = geometry.height();
+
+        let width_mm = m.width_mm();
+        let height_mm = m.height_mm();
+
+        let inch = 25.4f32;
+
+        if width_pixel < 1 || width_mm < 1 {
+            break;
+        }
+
+        if height_pixel < 1 || height_mm < 1 {
+            break;
+        }
+
+        let diagonal_mm = (((width_mm ^ 2) + (height_mm ^ 2)) as f32).sqrt();
+        let diagonal_pixel = (((width_pixel ^ 2) + (height_pixel ^ 2)) as f32).sqrt();
+        let tmp_ppi = diagonal_pixel / (diagonal_mm / inch);
+
+        if tmp_ppi > ppi {
+            ppi = tmp_ppi;
+        }
+    }
+
+    ppi
+}
+
 pub enum FileType {
     ZIP,
-    SPANNED_ZIP,
+    SpannedZip,
     PNG,
     JPG,
+    PDF,
     NONE,
 }
 
 pub fn detect_file_type_from_bytes(bytes: &[u8]) -> FileType {
-    if bytes.len() < 4 {
+    if bytes.len() < 5 {
         return FileType::NONE;
     }
 
@@ -32,6 +72,7 @@ pub fn detect_file_type_from_bytes(bytes: &[u8]) -> FileType {
     let second = bytes[1];
     let third = bytes[2];
     let fourth = bytes[3];
+    let fifth = bytes[4];
 
     if first == 0xFF && second == 0xD8 && third == 0xFF {
         return FileType::JPG;
@@ -47,8 +88,12 @@ pub fn detect_file_type_from_bytes(bytes: &[u8]) -> FileType {
         }
 
         if third == 0x7 && fourth == 0x8 {
-            return FileType::SPANNED_ZIP;
+            return FileType::SpannedZip;
         }
+    }
+
+    if first == 0x25 && second == 0x50 && third == 0x44 && fourth == 0x46 && fifth == 0x2D {
+        return FileType::PDF;
     }
 
     FileType::NONE

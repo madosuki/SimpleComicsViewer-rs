@@ -18,7 +18,7 @@ use anyhow::Result;
 use std::sync::Arc;
 use std::sync::Mutex;
 
-use crate::image_container;
+use crate::{image_container, pdf_loader};
 use crate::image_loader;
 use crate::utils;
 use image_container::{ImageContainer, ImageContainerEx};
@@ -270,6 +270,27 @@ async fn open_and_set_image_to_image_container_from_zip(
     }
 }
 
+async fn open_and_set_image_to_image_container_from_pdf(
+    pathname: &String,
+    image_container_list: &Arc<Mutex<Vec<ImageContainer>>>,
+) -> bool {
+    match pdf_loader::load_pdf(pathname) {
+        Ok(extracted) => {
+            extracted.into_iter().for_each(|v| {
+                let image_container = ImageContainer::default();
+                image_container.set_pixbuf_from_pdf_pixmap(&v);
+                (*image_container_list.lock().unwrap()).push(image_container);
+            });
+            true
+        },
+        Err(e) => {
+            eprintln!("{}", e);
+            false
+        }
+    }
+}
+
+
 fn open_and_set_image_to_image_container_from_file(
     file: &gio::File,
     image_container_list: &Arc<Mutex<Vec<ImageContainer>>>,
@@ -342,6 +363,7 @@ fn open_file_action(
     file_filter.add_pattern("*.zip");
     file_filter.add_pattern("*.jpg");
     file_filter.add_pattern("*.png");
+    file_filter.add_pattern("*.pdf");
     dialog.add_filter(&file_filter);
 
     dialog.connect_response(glib::clone!(#[weak] window, #[strong] image_container_list, #[strong] pages_info, #[weak] drawing_area_ref, #[weak] pages_bar,  #[strong] settings, move |file_dialog, response| {
@@ -350,69 +372,93 @@ fn open_file_action(
             let Some(path) = file.path() else { return };
             if !path.is_file() { return; }
 
-            let is_zip =
-                match utils::detect_file_type_from_file(&file) {
-                    utils::FileType::ZIP => true,
-                    _ => false
-                };
-
             (*image_container_list.lock().unwrap()).clear();
             *pages_info.current_page_index.lock().unwrap() = 0;
-            if is_zip {
-                let pathname = get_file_path_from_file_desc(&file).unwrap();
-                glib::spawn_future_local(glib::clone!(#[weak] window, #[strong] image_container_list, #[strong] settings, #[weak] drawing_area_ref, #[strong] pages_info, async move {
-                    update_window_title(&window, "Now Loading...");
+            match utils::detect_file_type_from_file(&file) {
+                utils::FileType::ZIP => {
+                    let pathname = get_file_path_from_file_desc(&file).unwrap();
+                    glib::spawn_future_local(glib::clone!(#[weak] window, #[strong] image_container_list, #[strong] settings, #[weak] drawing_area_ref, #[strong] pages_info, async move {
+                        update_window_title(&window, "Now Loading...");
                     
+                        let r = open_and_set_image_to_image_container_from_zip(&pathname, &image_container_list).await;
+                        if !r {
+                            return;
+                        }
+
+                        if image_container_list.lock().unwrap().len() < 1 {
+                            update_window_title(&window, "Failed");
+                            return;
+                        }
+
+                        *pages_info.loaded_filename.lock().unwrap() = Some(pathname.clone());
+                        update_window_title(&window, &pathname);
+
                     
-                    let r = open_and_set_image_to_image_container_from_zip(&pathname, &image_container_list).await;
-                    if !r {
-                        return;
-                    }
-
-                    if image_container_list.lock().unwrap().len() < 1 {
-                        update_window_title(&window, "Failed");
-                        return;
-                    }
-
-                    *pages_info.loaded_filename.lock().unwrap() = Some(pathname.clone());
-                    update_window_title(&window, &pathname);
-
-                    
-                    glib::idle_add_local_once(glib::clone!(#[strong] image_container_list, #[strong] settings, #[weak] drawing_area_ref, #[weak] pages_bar, move || {
-                        set_page_from_image_container_list(&image_container_list, &settings, &drawing_area_ref);
-                        pages_bar.set_fraction(0.0);
-                        pages_bar.set_inverted(true);
-                        // pages_bar.show();
-                        drawing_area_ref.queue_draw();
+                        glib::idle_add_local_once(glib::clone!(#[strong] image_container_list, #[strong] settings, #[weak] drawing_area_ref, #[weak] pages_bar, move || {
+                            set_page_from_image_container_list(&image_container_list, &settings, &drawing_area_ref);
+                            pages_bar.set_fraction(0.0);
+                            pages_bar.set_inverted(true);
+                            // pages_bar.show();
+                            drawing_area_ref.queue_draw();
+                        }));
                     }));
-                }));
-            } else {
-                let Some(dir_path) = path.parent() else {
-                    eprintln!("Failed get parent directory from path");
-                    return;
-                };
-
-                let Some(dir_path_str) = dir_path.to_str() else {
-                    eprintln!("Failed get dir path string");
-                    return;
-                };
-                update_window_title(&window, dir_path_str);
-                *pages_info.loaded_dirname.lock().unwrap() = Some(dir_path_str.to_owned());
-
-                glib::spawn_future_local(glib::clone!(#[weak] window, #[strong] image_container_list, #[strong] settings, #[weak] drawing_area_ref, #[strong] pages_info, async move {
-                    update_window_title(&window, "Now Loading...");
-
-                    let r = read_dir_and_set_images(&file, &image_container_list).await;
-                    if !r {
-                        return;
-                    }
+                },
+                utils::FileType::PDF => {
+                    let pathname = get_file_path_from_file_desc(&file).unwrap();
+                    glib::spawn_future_local(glib::clone!(#[weak] window, #[strong] image_container_list, #[strong] settings, #[weak] drawing_area_ref, #[strong] pages_info, async move {
+                        update_window_title(&window, "Now Loading...");
                     
-                    glib::idle_add_local_once(glib::clone!(#[strong] image_container_list, #[strong] settings, #[weak] drawing_area_ref, move || {
-                        set_page_from_image_container_list(&image_container_list, &settings, &drawing_area_ref);
-                        drawing_area_ref.queue_draw();
+                        let r = open_and_set_image_to_image_container_from_pdf(&pathname, &image_container_list).await;
+                        if !r {
+                            return;
+                        }
+
+                        if image_container_list.lock().unwrap().len() < 1 {
+                            update_window_title(&window, "Failed");
+                            return;
+                        }
+
+                        *pages_info.loaded_filename.lock().unwrap() = Some(pathname.clone());
+                        update_window_title(&window, &pathname);
+
+                    
+                        glib::idle_add_local_once(glib::clone!(#[strong] image_container_list, #[strong] settings, #[weak] drawing_area_ref, #[weak] pages_bar, move || {
+                            set_page_from_image_container_list(&image_container_list, &settings, &drawing_area_ref);
+                            pages_bar.set_fraction(0.0);
+                            pages_bar.set_inverted(true);
+                            // pages_bar.show();
+                            drawing_area_ref.queue_draw();
+                        }));
+                    }));                    
+                },
+                _ => {
+                    let Some(dir_path) = path.parent() else {
+                        eprintln!("Failed get parent directory from path");
+                        return;
+                    };
+
+                    let Some(dir_path_str) = dir_path.to_str() else {
+                        eprintln!("Failed get dir path string");
+                        return;
+                    };
+                    update_window_title(&window, dir_path_str);
+                    *pages_info.loaded_dirname.lock().unwrap() = Some(dir_path_str.to_owned());
+
+                    glib::spawn_future_local(glib::clone!(#[weak] window, #[strong] image_container_list, #[strong] settings, #[weak] drawing_area_ref, #[strong] pages_info, async move {
+                        update_window_title(&window, "Now Loading...");
+
+                        let r = read_dir_and_set_images(&file, &image_container_list).await;
+                        if !r {
+                            return;
+                        }
+                    
+                        glib::idle_add_local_once(glib::clone!(#[strong] image_container_list, #[strong] settings, #[weak] drawing_area_ref, move || {
+                            set_page_from_image_container_list(&image_container_list, &settings, &drawing_area_ref);
+                            drawing_area_ref.queue_draw();
+                        }));
                     }));
-                }));
-            }
+                }
+            };            
         }
         file_dialog.close();
     }));

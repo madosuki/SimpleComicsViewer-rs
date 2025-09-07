@@ -1,5 +1,6 @@
 mod image_container;
 mod image_loader;
+mod pdf_loader;
 mod main_window;
 mod utils;
 
