@@ -5,6 +5,7 @@ Currenlty status: WIP. But can read jpg and png and zip(jpg, png).
 - **[GTK4](https://crates.io/crates/gtk4)**
 - **[libarchive](https://www.libarchive.org/)**
 - **[libarchive_extractor-rs](https://github.com/madosuki/libarchive_extractor-rs)**
+- **[mupdf-rs](https://github.com/ArtifexSoftware/mupdf)**
   
 ### Supported file format
 - **Single File**
@@ -12,6 +13,7 @@ Currenlty status: WIP. But can read jpg and png and zip(jpg, png).
     - PNG
 - **Compressed File**
     - PNG or JPEG inside of non encrypted zip
+- **PDF**
 
  ### Manual
 - **Shortcut Key**
