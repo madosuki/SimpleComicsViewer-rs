@@ -73,7 +73,6 @@ pub fn detect_file_type_from_bytes(bytes: &[u8]) -> FileType {
     let third = bytes[2];
     let fourth = bytes[3];
     let fifth = bytes[4];
-    println!("{}", format!("{:02x}, {:02x}, {:02x}, {:02x}", first, second, third, fourth));
 
     if first == 0xFF && second == 0xD8 && third == 0xFF {
         return FileType::JPG;
