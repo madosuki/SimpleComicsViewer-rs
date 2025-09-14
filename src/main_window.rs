@@ -341,6 +341,7 @@ fn open_file_action(
     pages_bar: &gtk::ProgressBar,
     settings: &Arc<Settings>,
     pages_info: &Arc<PagesInfo>,
+    spinner: &gtk::Spinner,
 ) {
     let dialog = gtk::FileChooserDialog::new(
         Some("File Select"),
@@ -359,7 +360,7 @@ fn open_file_action(
     file_filter.add_pattern("*.pdf");
     dialog.add_filter(&file_filter);
 
-    dialog.connect_response(glib::clone!(#[weak] window, #[strong] image_container_list, #[strong] pages_info, #[weak] drawing_area_ref, #[weak] pages_bar,  #[strong] settings, move |file_dialog, response| {
+    dialog.connect_response(glib::clone!(#[weak] window, #[strong] image_container_list, #[strong] pages_info, #[weak] drawing_area_ref, #[weak] pages_bar,  #[weak] spinner, #[strong] settings, move |file_dialog, response| {
         if response == gtk::ResponseType::Ok {
             let Some(file) = file_dialog.file() else { return };
             let Some(path) = file.path() else { return };
@@ -391,18 +392,24 @@ fn open_file_action(
                                 Ok(v) => {
                                     match v {
                                         0 => {
-                                        set_page_from_image_container_list(&image_container_list, &settings, &drawing_area_ref);
-                                        *pages_info.loaded_filename.lock().unwrap() = Some(pathname.clone());
-                                        update_window_title(&window, &pathname);
+                                            set_page_from_image_container_list(&image_container_list, &settings, &drawing_area_ref);
+                                            *pages_info.loaded_filename.lock().unwrap() = Some(pathname.clone());
+                                            update_window_title(&window, &pathname);
 
-                                        pages_bar.set_fraction(0.0);
-                                        pages_bar.set_inverted(true);
-                                        // pages_bar.show();
-                                        drawing_area_ref.queue_draw();
+                                            spinner.stop();
+                                            spinner.hide();
+
+                                            pages_bar.set_fraction(0.0);
+                                            pages_bar.set_inverted(true);
+                                            // pages_bar.show();
+                                            drawing_area_ref.queue_draw();
 
                                             return glib::ControlFlow::Break;
                                         },
                                         2 => {
+                                            spinner.stop();
+                                            spinner.hide();
+
                                             update_window_title(&window, "Failed");
                                             return glib::ControlFlow::Break;
                                         }
@@ -431,6 +438,8 @@ fn open_file_action(
                     let pathname = get_file_path_from_file_desc(&file).unwrap();
                     let pathname_cloned = pathname.clone();
                     update_window_title(&window, "Now Loading...");
+                    spinner.show();
+                    spinner.start();
                     let (tx, rx) = std::sync::mpsc::sync_channel::<i32>(1);
                     let pdf_pixmaps_arc: Arc<Mutex<Vec<PdfPixmap>>> = Arc::new(Mutex::new(vec!()));
                     let pdf_pixmaps_arc_clone = Arc::clone(&pdf_pixmaps_arc);
@@ -448,19 +457,26 @@ fn open_file_action(
                                 Ok(v) => {
                                     match v {
                                         0 => {
-                                        set_image_to_image_container_from_pdf_pixmaps(&image_container_list, &pdf_pixmaps_arc);
-                                        set_page_from_image_container_list(&image_container_list, &settings, &drawing_area_ref);
-                                        *pages_info.loaded_filename.lock().unwrap() = Some(pathname.clone());
-                                        update_window_title(&window, &pathname);
+                                            set_image_to_image_container_from_pdf_pixmaps(&image_container_list, &pdf_pixmaps_arc);
+                                            set_page_from_image_container_list(&image_container_list, &settings, &drawing_area_ref);
+                                            *pages_info.loaded_filename.lock().unwrap() = Some(pathname.clone());
+                                            update_window_title(&window, &pathname);
 
-                                        pages_bar.set_fraction(0.0);
-                                        pages_bar.set_inverted(true);
-                                        // pages_bar.show();
-                                        drawing_area_ref.queue_draw();
+
+                                            spinner.stop();
+                                            spinner.hide();
+                                            
+                                            pages_bar.set_fraction(0.0);
+                                            pages_bar.set_inverted(true);
+                                            // pages_bar.show();
+                                            drawing_area_ref.queue_draw();                                            
 
                                             return glib::ControlFlow::Break;
                                         },
                                         2 => {
+                                            spinner.stop();
+                                            spinner.hide();
+
                                             update_window_title(&window, "Failed");
                                             return glib::ControlFlow::Break;
                                         }
@@ -519,11 +535,12 @@ fn create_action_entry_for_menu(
     drawing_area_ref: &DrawingArea,
     pages_bar: &gtk::ProgressBar,
     settings: &std::sync::Arc<Settings>,
+    spinner: &gtk::Spinner,
 ) -> Vec<gio::ActionEntry<gtk::Application>> {
     let file_action_entry: gio::ActionEntry<gtk::Application> = gio::ActionEntry::builder("file_open")
         .activate(glib::clone!(#[weak] window, #[strong] image_container_list,
-            #[strong] pages_info, #[strong] settings, #[strong] drawing_area_ref, #[weak] pages_bar, move |_app: &gtk::Application, _action: &gio::SimpleAction, _user_data: Option<&glib::Variant>| {
-                open_file_action(&window, &image_container_list, &drawing_area_ref, &pages_bar, &settings, &pages_info);
+            #[strong] pages_info, #[strong] settings, #[strong] drawing_area_ref, #[weak] pages_bar, #[weak] spinner, move |_app: &gtk::Application, _action: &gio::SimpleAction, _user_data: Option<&glib::Variant>| {
+                open_file_action(&window, &image_container_list, &drawing_area_ref, &pages_bar, &settings, &pages_info, &spinner);
         }))
         .build();
 
@@ -804,6 +821,10 @@ impl MainWindow {
         pages_bar.hide();
         pages_bar.set_valign(gtk::Align::End);
 
+        let spinner = gtk::Spinner::builder().build();
+        spinner.hide();
+        spinner.set_valign(gtk::Align::Center);
+
         let drawing_area = gtk::DrawingArea::builder()
             .hexpand_set(true)
             .vexpand_set(true)
@@ -834,7 +855,7 @@ impl MainWindow {
         }));
 
         let event_controller_key = EventControllerKey::builder().build();
-        let _ = event_controller_key.connect_key_pressed(glib::clone!(#[strong] app, #[strong] window, #[strong] image_container_list, #[strong] pages_info, #[strong] settings, #[strong] drawing_area, #[strong] pages_bar, #[strong] pages_info, move |_event_controller_key: &EventControllerKey, keyval: gdk::Key, _keycode: u32, state: gdk::ModifierType| {
+        let _ = event_controller_key.connect_key_pressed(glib::clone!(#[strong] app, #[strong] window, #[strong] image_container_list, #[strong] pages_info, #[strong] settings, #[strong] drawing_area, #[strong] pages_bar, #[strong] pages_info, #[strong] spinner, move |_event_controller_key: &EventControllerKey, keyval: gdk::Key, _keycode: u32, state: gdk::ModifierType| {
             
             if state == gdk::ModifierType::ALT_MASK && keyval == gdk::Key::Return {
                 fullscreen(&window, &pages_bar);
@@ -842,7 +863,7 @@ impl MainWindow {
             }
 
             if state == gdk::ModifierType::CONTROL_MASK && keyval == gdk::Key::o {
-                open_file_action(&window, &image_container_list, &drawing_area, &pages_bar, &settings, &pages_info);
+                open_file_action(&window, &image_container_list, &drawing_area, &pages_bar, &settings, &pages_info, &spinner);
                 return Propagation::Stop;
             }
 
@@ -925,6 +946,7 @@ impl MainWindow {
 
         let drawing_area_ref = &drawing_area;
         let pages_bar_ref = &pages_bar;
+        let spinner_ref = &spinner;
         let action_entry = create_action_entry_for_menu(
             window,
             image_container_list,
@@ -932,12 +954,14 @@ impl MainWindow {
             drawing_area_ref,
             pages_bar_ref,
             settings,
+            spinner_ref
         );
         app.add_action_entries(action_entry);
         self.view_window.set_child(Some(drawing_area_ref));
 
         let overlay = gtk::Overlay::new();
         overlay.set_child(Some(&self.view_window));
+        overlay.add_overlay(spinner_ref);
         overlay.add_overlay(pages_bar_ref);
 
 
