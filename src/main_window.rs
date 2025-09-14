@@ -252,7 +252,7 @@ fn set_page_from_image_container_list(
     }
 }
 
-async fn open_and_set_image_to_image_container_from_zip(
+fn open_and_set_image_to_image_container_from_zip(
     pathname: &String,
     image_container_list: &Arc<Mutex<Vec<ImageContainer>>>,
 ) -> bool {
@@ -370,30 +370,61 @@ fn open_file_action(
             match utils::detect_file_type_from_file(&file) {
                 utils::FileType::ZIP => {
                     let pathname = get_file_path_from_file_desc(&file).unwrap();
+                    let pathname_cloned = pathname.clone();
+                    let (tx, rx) = std::sync::mpsc::sync_channel::<i32>(1);
+                    let image_container_list_arc_cloned = Arc::clone(&image_container_list);
+
+                    let _ = std::thread::spawn(move || {
+                        let r = open_and_set_image_to_image_container_from_zip(&pathname_cloned, &image_container_list_arc_cloned);
+                        if !r {
+                            tx.send(2).unwrap();
+                        } else {
+                            tx.send(0).unwrap();
+                        }
+                    });
+                    
                     glib::spawn_future_local(glib::clone!(#[weak] window, #[strong] image_container_list, #[strong] settings, #[weak] drawing_area_ref, #[strong] pages_info, async move {
                         update_window_title(&window, "Now Loading...");
-                    
-                        let r = open_and_set_image_to_image_container_from_zip(&pathname, &image_container_list).await;
-                        if !r {
-                            return;
-                        }
 
-                        if image_container_list.lock().unwrap().len() < 1 {
-                            update_window_title(&window, "Failed");
-                            return;
-                        }
+                        let _source_id = glib::idle_add_local(glib::clone!(#[strong] image_container_list, #[strong] settings, #[strong] drawing_area_ref, #[strong] pages_bar, move || {
+                            match rx.try_recv() {
+                                Ok(v) => {
+                                    match v {
+                                        0 => {
+                                        set_page_from_image_container_list(&image_container_list, &settings, &drawing_area_ref);
+                                        *pages_info.loaded_filename.lock().unwrap() = Some(pathname.clone());
+                                        update_window_title(&window, &pathname);
 
-                        *pages_info.loaded_filename.lock().unwrap() = Some(pathname.clone());
-                        update_window_title(&window, &pathname);
+                                        pages_bar.set_fraction(0.0);
+                                        pages_bar.set_inverted(true);
+                                        // pages_bar.show();
+                                        drawing_area_ref.queue_draw();
 
-                    
-                        glib::idle_add_local_once(glib::clone!(#[strong] image_container_list, #[strong] settings, #[weak] drawing_area_ref, #[weak] pages_bar, move || {
-                            set_page_from_image_container_list(&image_container_list, &settings, &drawing_area_ref);
-                            pages_bar.set_fraction(0.0);
-                            pages_bar.set_inverted(true);
-                            // pages_bar.show();
-                            drawing_area_ref.queue_draw();
-                        }));
+                                            return glib::ControlFlow::Break;
+                                        },
+                                        2 => {
+                                            update_window_title(&window, "Failed");
+                                            return glib::ControlFlow::Break;
+                                        }
+                                        _ => {
+                                            return glib::ControlFlow::Continue;
+                                        }
+                                    }
+                                },
+                                Err(_) => {
+                                    return glib::ControlFlow::Continue;
+                                }
+                            }}));
+                        // glib::idle_add_local_once(glib::clone!(#[strong] image_container_list, #[strong] settings, #[weak] drawing_area_ref, #[weak] pages_bar, move || {
+                        //     *pages_info.loaded_filename.lock().unwrap() = Some(pathname.clone());
+                        //     update_window_title(&window, &pathname);
+
+                        //     set_page_from_image_container_list(&image_container_list, &settings, &drawing_area_ref);
+                        //     pages_bar.set_fraction(0.0);
+                        //     pages_bar.set_inverted(true);
+                        //     // pages_bar.show();
+                        //     drawing_area_ref.queue_draw();
+                        // }));
                     }));
                 },
                 utils::FileType::PDF => {
@@ -403,7 +434,7 @@ fn open_file_action(
                     let (tx, rx) = std::sync::mpsc::sync_channel::<i32>(1);
                     let pdf_pixmaps_arc: Arc<Mutex<Vec<PdfPixmap>>> = Arc::new(Mutex::new(vec!()));
                     let pdf_pixmaps_arc_clone = Arc::clone(&pdf_pixmaps_arc);
-                    std::thread::spawn(move || {
+                    let a = std::thread::spawn(move || {
                         match pdf_loader::load_pdf(&pathname_cloned, &pdf_pixmaps_arc_clone) {
                             Ok(_) => tx.send(0).unwrap(),
                             Err(_) => tx.send(2).unwrap()
@@ -430,6 +461,7 @@ fn open_file_action(
                                             return glib::ControlFlow::Break;
                                         },
                                         2 => {
+                                            update_window_title(&window, "Failed");
                                             return glib::ControlFlow::Break;
                                         }
                                         _ => {
