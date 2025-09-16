@@ -204,11 +204,12 @@ pub fn read_bytes_from_file_path(path_str: &str) -> Option<Vec<u8>> {
 
 pub fn create_pixbuf_from_bytes(bytes: &[u8]) -> Option<gtk::gdk_pixbuf::Pixbuf> {
     let pixbuf_loader = gtk::gdk_pixbuf::PixbufLoader::new();
-    let result_of_pixbuf_loader_write = pixbuf_loader.write(bytes);
-    if result_of_pixbuf_loader_write.is_err() {
-        // println!("{}", result_of_pixbuf_loader_write.err().unwrap());
-        return None;
-    }
+    pixbuf_loader.write(bytes).unwrap();
+    // let result_of_pixbuf_loader_write = pixbuf_loader.write(bytes);
+    // if result_of_pixbuf_loader_write.is_err() {
+    //     println!("{}", result_of_pixbuf_loader_write.err().unwrap());
+    //     return None;
+    // }
 
     let Some(pixbuf_data) = pixbuf_loader.pixbuf() else {
         return None;
