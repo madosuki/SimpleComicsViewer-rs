@@ -1,5 +1,5 @@
-use gdk4 as gdk;
 use gtk4 as gtk;
+use gtk::gdk;
 
 use gtk::glib::Propagation;
 use gtk::prelude::{
@@ -17,7 +17,6 @@ use anyhow::Result;
 
 use std::sync::Arc;
 use std::sync::Mutex;
-use std::sync::mpsc::sync_channel;
 
 use crate::pdf_loader::PdfPixmap;
 use crate::{image_container, pdf_loader};

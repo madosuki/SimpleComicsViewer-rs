@@ -3,8 +3,9 @@ use std::fs::File;
 use std::io::Read;
 
 use gtk4 as gtk;
+use gtk::{gio, glib};
 
-use gtk::prelude::{FileExt, PixbufLoaderExt, WidgetExt};
+use gtk::prelude::{FileExt, PixbufLoaderExt};
 
 use crate::{pdf_loader::PdfPixmap, utils};
 
@@ -191,7 +192,6 @@ impl ImageContainerEx for ImageContainer {
     }
 }
 
-#[allow(dead_code)]
 pub fn read_bytes_from_file_path(path_str: &str) -> Option<Vec<u8>> {
     let path = Some(std::path::Path::new(path_str)).unwrap();
     let mut f = File::open(path).unwrap();

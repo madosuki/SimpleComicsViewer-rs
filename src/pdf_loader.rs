@@ -1,4 +1,4 @@
-use mupdf::{Document, TextPageOptions, Pixmap};
+use mupdf::{Document, Pixmap};
 
 use crate::utils;
 
@@ -17,7 +17,7 @@ pub fn load_pdf(file_path: &str, pdf_pixmaps: &std::sync::Arc<std::sync::Mutex<V
 
     for page_result in document.pages()? {
         let page = page_result?;
-        let boundbox = page.bounds()?;
+        // let boundbox = page.bounds()?;
         // let display_list = page.to_display_list(false)?;
         // let device = mupdf::Device::from_display_list(&display_list)?;
         let zoom = (ppi / 96.0) as f32;

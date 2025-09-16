@@ -1,6 +1,8 @@
-use gdk4::{ffi::GdkDisplay, prelude::DisplayExt, Monitor};
-use glib::object::Cast;
 use gtk4 as gtk;
+use gtk::gio;
+use gtk::prelude::Cast;
+
+use gtk::gdk::{prelude::DisplayExt};
 
 use gtk::prelude::FileExt;
 use gtk::prelude::MonitorExt;
