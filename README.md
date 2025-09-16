@@ -25,3 +25,29 @@ Currenlty status: WIP. But can read jpg and png and zip(jpg, png).
         Ctrl+o  
     - **Quit**  
         Ctrl+q or Alt+F4  
+
+### Build
+##### install libs
+require libs:  
+- gtk4
+- libarchive
+
+below libs require mupdf-sys.  
+- freetypr
+- gumbo
+- harfbuzz
+- jpegxr
+- jbig2dec
+- lcms2
+- libjpeg
+- openjpeg
+- zlib
+- leptonica
+- tesseract
+- zxingcpp
+- brotli
+
+build:
+```bash
+cargo build
+```
