@@ -14,6 +14,6 @@ jobs:
     - name: install libraries
       run: |
         sudo apt update
-        sudo apt install libgtk-4-dev build-essential libharfbuzz-dev libjpeg-dev libopenjp2-7-dev libjbig2dec0-dev libpng-dev libfreetype6-dev libarchive-dev libmupdf-dev libgumbo-dev libbrotli-dev liblcms2-dev libleptonica-dev libzxing-dev mold
+        sudo apt install libgtk-4-dev build-essential libharfbuzz-dev libjpeg-dev libopenjp2-7-dev libjbig2dec0-dev libpng-dev libfreetype6-dev libarchive-dev libmupdf-dev libgumbo-dev libbrotli-dev liblcms2-dev libleptonica-dev libzxing-dev libtesseract-dev mold
     - name: cargo build
       run: cargo build

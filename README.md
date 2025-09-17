@@ -33,7 +33,7 @@ require libs:
 - libarchive
 
 below libs require mupdf-sys.  
-- freetypr
+- freetype
 - gumbo
 - harfbuzz
 - jpegxr
