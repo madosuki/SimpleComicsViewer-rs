@@ -374,6 +374,9 @@ fn open_file_action(
                     let (tx, rx) = std::sync::mpsc::sync_channel::<i32>(1);
                     let image_container_list_arc_cloned = Arc::clone(&image_container_list);
 
+                    spinner.show();
+                    spinner.start();
+
                     let _ = std::thread::spawn(move || {
                         let r = open_and_set_image_to_image_container_from_zip(&pathname_cloned, &image_container_list_arc_cloned);
                         if !r {
