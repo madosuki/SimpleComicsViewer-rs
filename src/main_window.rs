@@ -49,6 +49,11 @@ struct MarginDataForDual {
     top_margin_for_right: i32,
 }
 
+enum ResultLoadFilesWithMultiThread {
+    Success,
+    Failed,
+}
+
 struct MainWindow {
     window: ApplicationWindow,
     v_box: gtk::Box,
@@ -371,7 +376,7 @@ fn open_file_action(
                 utils::FileType::ZIP => {
                     let pathname = get_file_path_from_file_desc(&file).unwrap();
                     let pathname_cloned = pathname.clone();
-                    let (tx, rx) = std::sync::mpsc::sync_channel::<i32>(1);
+                    let (tx, rx) = std::sync::mpsc::sync_channel::<ResultLoadFilesWithMultiThread>(1);
                     let image_container_list_arc_cloned = Arc::clone(&image_container_list);
 
                     spinner.show();
@@ -380,9 +385,9 @@ fn open_file_action(
                     let _ = std::thread::spawn(move || {
                         let r = open_and_set_image_to_image_container_from_zip(&pathname_cloned, &image_container_list_arc_cloned);
                         if !r {
-                            tx.send(2).unwrap();
+                            tx.send(ResultLoadFilesWithMultiThread::Failed).unwrap();
                         } else {
-                            tx.send(0).unwrap();
+                            tx.send(ResultLoadFilesWithMultiThread::Success).unwrap();
                         }
                     });
                     
@@ -393,7 +398,7 @@ fn open_file_action(
                             match rx.try_recv() {
                                 Ok(v) => {
                                     match v {
-                                        0 => {
+                                        ResultLoadFilesWithMultiThread::Success => {
                                             set_page_from_image_container_list(&image_container_list, &settings, &drawing_area_ref);
                                             *pages_info.loaded_filename.lock().unwrap() = Some(pathname.clone());
                                             update_window_title(&window, &pathname);
@@ -408,15 +413,12 @@ fn open_file_action(
 
                                             return glib::ControlFlow::Break;
                                         },
-                                        2 => {
+                                        ResultLoadFilesWithMultiThread::Failed => {
                                             spinner.stop();
                                             spinner.hide();
 
                                             update_window_title(&window, "Failed");
                                             return glib::ControlFlow::Break;
-                                        }
-                                        _ => {
-                                            return glib::ControlFlow::Continue;
                                         }
                                     }
                                 },
@@ -424,16 +426,6 @@ fn open_file_action(
                                     return glib::ControlFlow::Continue;
                                 }
                             }}));
-                        // glib::idle_add_local_once(glib::clone!(#[strong] image_container_list, #[strong] settings, #[weak] drawing_area_ref, #[weak] pages_bar, move || {
-                        //     *pages_info.loaded_filename.lock().unwrap() = Some(pathname.clone());
-                        //     update_window_title(&window, &pathname);
-
-                        //     set_page_from_image_container_list(&image_container_list, &settings, &drawing_area_ref);
-                        //     pages_bar.set_fraction(0.0);
-                        //     pages_bar.set_inverted(true);
-                        //     // pages_bar.show();
-                        //     drawing_area_ref.queue_draw();
-                        // }));
                     }));
                 },
                 utils::FileType::PDF => {
@@ -442,13 +434,13 @@ fn open_file_action(
                     update_window_title(&window, "Now Loading...");
                     spinner.show();
                     spinner.start();
-                    let (tx, rx) = std::sync::mpsc::sync_channel::<i32>(1);
+                    let (tx, rx) = std::sync::mpsc::sync_channel::<ResultLoadFilesWithMultiThread>(1);
                     let pdf_pixmaps_arc: Arc<Mutex<Vec<PdfPixmap>>> = Arc::new(Mutex::new(vec!()));
                     let pdf_pixmaps_arc_clone = Arc::clone(&pdf_pixmaps_arc);
                     let a = std::thread::spawn(move || {
                         match pdf_loader::load_pdf(&pathname_cloned, &pdf_pixmaps_arc_clone) {
-                            Ok(_) => tx.send(0).unwrap(),
-                            Err(_) => tx.send(2).unwrap()
+                            Ok(_) => tx.send(ResultLoadFilesWithMultiThread::Success).unwrap(),
+                            Err(_) => tx.send(ResultLoadFilesWithMultiThread::Failed).unwrap()
                         }
                     });
 
@@ -458,7 +450,7 @@ fn open_file_action(
                             match rx.try_recv() {
                                 Ok(v) => {
                                     match v {
-                                        0 => {
+                                        ResultLoadFilesWithMultiThread::Success => {
                                             set_image_to_image_container_from_pdf_pixmaps(&image_container_list, &pdf_pixmaps_arc);
                                             set_page_from_image_container_list(&image_container_list, &settings, &drawing_area_ref);
                                             *pages_info.loaded_filename.lock().unwrap() = Some(pathname.clone());
@@ -475,7 +467,7 @@ fn open_file_action(
 
                                             return glib::ControlFlow::Break;
                                         },
-                                        2 => {
+                                        ResultLoadFilesWithMultiThread::Failed => {
                                             spinner.stop();
                                             spinner.hide();
 
