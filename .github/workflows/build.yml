@@ -10,7 +10,9 @@ on:
       version:
         description: "xxx.xxx.xxx"
         required: true
-  
+
+  permissions:
+    contents: write
 
 env:
   ARCH: x86_64
