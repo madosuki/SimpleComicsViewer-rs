@@ -437,7 +437,7 @@ fn open_file_action(
                     let (tx, rx) = std::sync::mpsc::sync_channel::<ResultLoadFilesWithMultiThread>(1);
                     let pdf_pixmaps_arc: Arc<Mutex<Vec<PdfPixmap>>> = Arc::new(Mutex::new(vec!()));
                     let pdf_pixmaps_arc_clone = Arc::clone(&pdf_pixmaps_arc);
-                    let a = std::thread::spawn(move || {
+                    let _ = std::thread::spawn(move || {
                         match pdf_loader::load_pdf(&pathname_cloned, &pdf_pixmaps_arc_clone) {
                             Ok(_) => tx.send(ResultLoadFilesWithMultiThread::Success).unwrap(),
                             Err(_) => tx.send(ResultLoadFilesWithMultiThread::Failed).unwrap()
@@ -473,9 +473,6 @@ fn open_file_action(
 
                                             update_window_title(&window, "Failed");
                                             return glib::ControlFlow::Break;
-                                        }
-                                        _ => {
-                                            return glib::ControlFlow::Continue;
                                         }
                                     }
                                 },
