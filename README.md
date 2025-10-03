@@ -40,7 +40,7 @@ below libs require mupdf-sys.
 - jbig2dec
 - lcms2
 - libjpeg
-- openjpeg
+- openjp2
 - zlib
 - leptonica
 - tesseract
