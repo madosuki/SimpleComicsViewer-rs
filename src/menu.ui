@@ -12,9 +12,9 @@
           <attribute name="label" translatable="yes">Quit</attribute>
           <attribute name="action">app.quit</attribute>
         </item>
-        <!-- <item> -->
-        <!--   <attribute name="custom">history_custom</attribute> -->
-        <!-- </item> -->
+        <submenu id="file-history">
+          <attribute name="label">History</attribute>
+        </submenu>
       </section>
     </submenu>
     <submenu>

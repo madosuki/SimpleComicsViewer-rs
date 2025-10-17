@@ -11,3 +11,4 @@ libarchive3-sys-by-madosuki = { git = "https://github.com/madosuki/libarchive3-s
 libarchive_extractor-rs = { git = "https://github.com/madosuki/libarchive_extractor-rs" }
 anyhow = "1.0.99"
 mupdf = { version = "0.5.0", features = ["sys-lib"]}
+rusqlite = "0.37.0"

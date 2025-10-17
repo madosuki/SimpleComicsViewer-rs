@@ -7,6 +7,22 @@ use gtk::gdk::{prelude::DisplayExt};
 use gtk::prelude::FileExt;
 use gtk::prelude::MonitorExt;
 
+pub fn get_current_unixtime() -> Option<u64> {
+    if let Ok(duration) = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH) {
+        Some(duration.as_secs())
+    } else {
+        None
+    }
+}
+
+pub fn get_xdg_config_home() -> String {
+    if let Ok(dir) = std::env::var("XDG_CONFIG_HOME") {
+        dir
+    } else {
+        "/home/user/.config/simple_comics_viewer".to_owned()
+    }
+}
+
 pub fn get_value_with_option_from_ref_cell_option<T, R, F>(
     data: &std::cell::RefCell<Option<T>>,
     f: F,
