@@ -19,7 +19,8 @@ pub fn get_xdg_config_home() -> String {
     if let Ok(dir) = std::env::var("XDG_CONFIG_HOME") {
         dir
     } else {
-        "/home/user/.config/simple_comics_viewer".to_owned()
+        let dir = std::env::var("HOME").expect("failed get HOME dir");
+        dir + "/.config/simple_comics_viewer"
     }
 }
 
