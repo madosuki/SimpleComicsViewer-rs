@@ -125,3 +125,12 @@ pub fn detect_file_type_from_file(file: &gio::File) -> FileType {
     let tmp = bytes.to_vec();
     detect_file_type_from_bytes(&tmp)
 }
+
+pub fn create_config_dir(dir: &str) {
+    let pathbuf = std::path::PathBuf::from(dir);
+    let v = pathbuf.try_exists().unwrap();
+
+    if !v {
+        let _ = std::fs::create_dir_all(pathbuf).unwrap();
+    }
+}

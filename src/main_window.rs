@@ -1,4 +1,5 @@
 use gtk4::glib::variant::ToVariant;
+use gtk4::glib::VariantTy;
 use gtk4 as gtk;
 use gtk::gdk;
 
@@ -64,7 +65,7 @@ struct MainWindow {
     pages_info: std::sync::Arc<PagesInfo>,
     settings: std::sync::Arc<Settings>,
     view_window: gtk::ScrolledWindow,
-    open_file_history_menu_arc: Arc<Mutex<gio::Menu>>
+    // open_file_history_menu_arc: Arc<Mutex<gio::Menu>>
 }
 
 fn update_window_title(window: &gtk::ApplicationWindow, title_text: &str) {
@@ -342,26 +343,50 @@ async fn read_dir_and_set_images(
     }
 }
 
-fn update_open_file_history_menu(menu: &gio::Menu, db_manager: &Arc<Mutex<file_history::DbManager>>, file_path: &str) {
-    let unixtime = utils::get_current_unixtime().expect("failed get unixtime");
-
+fn set_open_file_history_menu(menu: &Arc<Mutex<gio::Menu>>, db_manager: &Arc<Mutex<file_history::DbManager>>) {
     let unlock_db_manager = db_manager.lock().unwrap();
-    unlock_db_manager.add_history(file_path.to_owned(), unixtime);
 
     let open_file_history_list = unlock_db_manager.get_history();
     if open_file_history_list.is_empty() {
         return;
     }
+
+    let unlock_menu = menu.lock().unwrap();
+    unlock_menu.remove_all();
+    for i in open_file_history_list {
+        let item = gio::MenuItem::new(Some(&i.path), Some("app.open_file_from_history"));
+        item.set_attribute_value("target", Some(&i.path.to_variant()));
+        unlock_menu.append_item(&item);
+    }
+} 
+
+fn update_open_file_history_menu(menu: &Arc<Mutex<gio::Menu>>, db_manager: &Arc<Mutex<file_history::DbManager>>, file_path: &str) {
+    let unixtime = utils::get_current_unixtime().expect("failed get unixtime");
+
+    let unlock_db_manager = db_manager.lock().unwrap();
+    if unlock_db_manager.is_exists_file_path(file_path) {
+        unlock_db_manager.update_history(file_path, unixtime);
+    } else {
+        unlock_db_manager.add_history(file_path.to_owned(), unixtime);
+    }
+
     
-    menu.remove_all();
+    let open_file_history_list = unlock_db_manager.get_history();
+    if open_file_history_list.is_empty() {
+        return;
+    }
+
+    let unlock_menu = menu.lock().unwrap();
+    unlock_menu.remove_all();
     for i in open_file_history_list {
         let item = gio::MenuItem::new(Some(&i.path), Some("app.open_file"));
         item.set_attribute_value("target", Some(&i.path.to_variant()));
-        menu.append_item(&item);
+        unlock_menu.append_item(&item);
     }
+
 }
 
-fn open_file_action(
+fn open_file_for_action (
     window: &gtk::ApplicationWindow,
     image_container_list: &Arc<Mutex<Vec<ImageContainer>>>,
     drawing_area_ref: &DrawingArea,
@@ -370,38 +395,15 @@ fn open_file_action(
     pages_info: &Arc<PagesInfo>,
     spinner: &gtk::Spinner,
     open_file_history_menu: &Arc<Mutex<gio::Menu>>,
-    db_manager: &Arc<Mutex<file_history::DbManager>>
+    db_manager: &Arc<Mutex<file_history::DbManager>>,
+    file: &gio::File
 ) {
-    let dialog = gtk::FileChooserDialog::new(
-        Some("File Select"),
-        Some(window),
-        gtk::FileChooserAction::Open,
-        &[
-            ("Open", gtk::ResponseType::Ok),
-            ("Cancel", gtk::ResponseType::Cancel),
-        ],
-    );
-
-    let file_filter = gtk::FileFilter::new();
-    file_filter.add_pattern("*.zip");
-    file_filter.add_pattern("*.jpg");
-    file_filter.add_pattern("*.png");
-    file_filter.add_pattern("*.pdf");
-    dialog.add_filter(&file_filter);
-
-
-    dialog.connect_response(glib::clone!(#[weak] window, #[strong] image_container_list, #[strong] pages_info, #[weak] drawing_area_ref, #[weak] pages_bar,  #[weak] spinner, #[strong] settings, #[weak] open_file_history_menu, #[weak] db_manager, move |file_dialog, response| {
-        if response == gtk::ResponseType::Ok {
-            let Some(file) = file_dialog.file() else { return };
-            let Some(path) = file.path() else { return };
-            if !path.is_file() { return; }
-
-            (*image_container_list.lock().unwrap()).clear();
-            *pages_info.current_page_index.lock().unwrap() = 0;
-            match utils::detect_file_type_from_file(&file) {
-                utils::FileType::ZIP => {
-                    let pathname = get_file_path_from_file_desc(&file).unwrap();
-                    let pathname_cloned = pathname.clone();
+    (*image_container_list.lock().unwrap()).clear();
+    *pages_info.current_page_index.lock().unwrap() = 0;
+    match utils::detect_file_type_from_file(&file) {
+        utils::FileType::ZIP => {
+            let pathname = get_file_path_from_file_desc(&file).unwrap();
+            let pathname_cloned = pathname.clone();
                     let (tx, rx) = std::sync::mpsc::sync_channel::<ResultLoadFilesWithMultiThread>(1);
                     let image_container_list_arc_cloned = Arc::clone(&image_container_list);
 
@@ -417,7 +419,7 @@ fn open_file_action(
                         }
                     });
                     
-                    glib::spawn_future_local(glib::clone!(#[weak] window, #[strong] image_container_list, #[strong] settings, #[weak] drawing_area_ref, #[strong] pages_info, #[weak] open_file_history_menu, async move {
+                    glib::spawn_future_local(glib::clone!(#[weak] window, #[strong] image_container_list, #[strong] settings, #[weak] drawing_area_ref, #[strong] pages_info, #[weak] pages_bar, #[weak] spinner, #[weak] db_manager,  #[weak] open_file_history_menu, async move {
                         update_window_title(&window, "Now Loading...");
 
                         let _source_id = glib::idle_add_local(glib::clone!(#[strong] image_container_list, #[strong] settings, #[strong] drawing_area_ref, #[strong] pages_bar, move || {
@@ -437,7 +439,7 @@ fn open_file_action(
                                             // pages_bar.show();
                                             drawing_area_ref.queue_draw();
 
-                                            update_open_file_history_menu(&open_file_history_menu.lock().unwrap(), &db_manager, &pathname);
+                                            update_open_file_history_menu(&open_file_history_menu, &db_manager, &pathname);
 
                                             return glib::ControlFlow::Break;
                                         },
@@ -472,7 +474,7 @@ fn open_file_action(
                         }
                     });
 
-                    glib::spawn_future_local(glib::clone!(#[weak] window, #[weak] image_container_list, #[strong] settings, #[weak] drawing_area_ref, #[strong] pages_info, async move {
+                    glib::spawn_future_local(glib::clone!(#[weak] window, #[weak] image_container_list, #[strong] settings, #[weak] drawing_area_ref, #[strong] pages_info, #[weak] pages_bar, #[weak] spinner, #[weak] db_manager, #[weak] open_file_history_menu, async move {
 
                         let _source_id = glib::idle_add_local(glib::clone!(#[strong] image_container_list, #[strong] settings, #[strong] drawing_area_ref, #[strong] pages_bar, move || {
                             match rx.try_recv() {
@@ -491,7 +493,8 @@ fn open_file_action(
                                             pages_bar.set_fraction(0.0);
                                             pages_bar.set_inverted(true);
                                             // pages_bar.show();
-                                            drawing_area_ref.queue_draw();                                            
+                                            drawing_area_ref.queue_draw();
+                                            update_open_file_history_menu(&open_file_history_menu, &db_manager, &pathname);
 
                                             return glib::ControlFlow::Break;
                                         },
@@ -511,34 +514,74 @@ fn open_file_action(
                         }));
                     }));                    
                 },
-                _ => {
-                    let Some(dir_path) = path.parent() else {
-                        eprintln!("Failed get parent directory from path");
-                        return;
-                    };
+        _ => {
+            let Some(path) = file.path() else { return };
+            let Some(dir_path) = path.parent() else {
+                eprintln!("Failed get parent directory from path");
+                return;
+            };
 
-                    let Some(dir_path_str) = dir_path.to_str() else {
-                        eprintln!("Failed get dir path string");
-                        return;
-                    };
-                    update_window_title(&window, dir_path_str);
-                    *pages_info.loaded_dirname.lock().unwrap() = Some(dir_path_str.to_owned());
+            let Some(dir_path_str) = dir_path.to_str() else {
+                eprintln!("Failed get dir path string");
+                return;
+            };
+            update_window_title(&window, dir_path_str);
+            *pages_info.loaded_dirname.lock().unwrap() = Some(dir_path_str.to_owned());
 
-                    glib::spawn_future_local(glib::clone!(#[weak] window, #[strong] image_container_list, #[strong] settings, #[weak] drawing_area_ref, #[strong] pages_info, async move {
-                        update_window_title(&window, "Now Loading...");
+            glib::spawn_future_local(glib::clone!(#[weak] window, #[strong] image_container_list, #[strong] settings, #[weak] drawing_area_ref, #[strong] pages_info, #[strong] file, async move {
+                update_window_title(&window, "Now Loading...");
 
-                        let r = read_dir_and_set_images(&file, &image_container_list).await;
-                        if !r {
-                            return;
-                        }
-                    
-                        glib::idle_add_local_once(glib::clone!(#[strong] image_container_list, #[strong] settings, #[weak] drawing_area_ref, move || {
-                            set_page_from_image_container_list(&image_container_list, &settings, &drawing_area_ref);
-                            drawing_area_ref.queue_draw();
-                        }));
-                    }));
+                let r = read_dir_and_set_images(&file, &image_container_list).await;
+                if !r {
+                    return;
                 }
-            };            
+                    
+                glib::idle_add_local_once(glib::clone!(#[strong] image_container_list, #[strong] settings, #[weak] drawing_area_ref, move || {
+                    set_page_from_image_container_list(&image_container_list, &settings, &drawing_area_ref);
+                    drawing_area_ref.queue_draw();
+                }));
+            }));
+        }
+    };            
+}
+
+fn open_file_action_with_dialog(
+    window: &gtk::ApplicationWindow,
+    image_container_list: &Arc<Mutex<Vec<ImageContainer>>>,
+    drawing_area_ref: &DrawingArea,
+    pages_bar: &gtk::ProgressBar,
+    settings: &Arc<Settings>,
+    pages_info: &Arc<PagesInfo>,
+    spinner: &gtk::Spinner,
+    open_file_history_menu: &Arc<Mutex<gio::Menu>>,
+    db_manager: &Arc<Mutex<file_history::DbManager>>
+) {
+    let dialog = gtk::FileChooserDialog::new(
+        Some("File Select"),
+        Some(window),
+        gtk::FileChooserAction::Open,
+        &[
+            ("Open", gtk::ResponseType::Ok),
+            ("Cancel", gtk::ResponseType::Cancel),
+        ],
+    );
+
+    let file_filter = gtk::FileFilter::new();
+    file_filter.add_pattern("*.zip");
+    file_filter.add_pattern("*.jpg");
+    file_filter.add_pattern("*.png");
+    file_filter.add_pattern("*.pdf");
+    dialog.add_filter(&file_filter);
+
+
+    dialog.connect_response(glib::clone!(#[weak] window, #[strong] image_container_list, #[strong] pages_info, #[weak] drawing_area_ref, #[weak] pages_bar,  #[weak] spinner, #[strong] settings, #[weak] open_file_history_menu, #[weak] db_manager, move |file_dialog, response| {
+        if response == gtk::ResponseType::Ok {
+            let Some(file) = file_dialog.file() else { return };
+            let Some(path) = file.path() else { return };
+            if !path.is_file() { return; }
+
+            open_file_for_action(&window, &image_container_list, &drawing_area_ref, &pages_bar, &settings, &pages_info, &spinner, &open_file_history_menu, &db_manager, &file);
+
         }
         file_dialog.close();
     }));
@@ -558,10 +601,10 @@ fn create_action_entry_for_menu(
     open_file_history_menu: &Arc<Mutex<gio::Menu>>,
     db_manager: &Arc<Mutex<file_history::DbManager>>
 ) -> Vec<gio::ActionEntry<gtk::Application>> {
-    let file_action_entry: gio::ActionEntry<gtk::Application> = gio::ActionEntry::builder("file_open")
+    let open_file_action_entry: gio::ActionEntry<gtk::Application> = gio::ActionEntry::builder("file_open")
         .activate(glib::clone!(#[weak] window, #[strong] image_container_list,
             #[strong] pages_info, #[strong] settings, #[strong] drawing_area_ref, #[weak] pages_bar, #[weak] spinner, #[weak] open_file_history_menu, #[weak] db_manager, move |_app: &gtk::Application, _action: &gio::SimpleAction, _user_data: Option<&glib::Variant>| {
-                open_file_action(&window,
+                open_file_action_with_dialog(&window,
                                  &image_container_list,
                                  &drawing_area_ref,
                                  &pages_bar,
@@ -573,13 +616,33 @@ fn create_action_entry_for_menu(
         }))
         .build();
 
+    let open_file_from_history_action_entry: gio::ActionEntry<gtk::Application> = gio::ActionEntry::builder("open_file_from_history")
+        .parameter_type(Some(VariantTy::STRING))
+        .activate(glib::clone!(#[weak] window, #[strong] image_container_list,
+                               #[strong] pages_info, #[strong] settings, #[strong] drawing_area_ref, #[weak] pages_bar, #[weak] spinner, #[weak] open_file_history_menu, #[weak] db_manager, move |_app: &gtk::Application, _action: &gio::SimpleAction, _user_data: Option<&glib::Variant>| {
+                                   let path_str = _user_data.expect("failed get userdata in open_file_from_history_action_entry").get::<String>().expect("failed get variant in open_file_from_history_action_entry");
+                                   let file = gio::File::for_path(path_str);
+                                   open_file_for_action(&window,
+                                                        &image_container_list,
+                                                        &drawing_area_ref,
+                                                        &pages_bar,
+                                                        &settings,
+                                                        &pages_info,
+                                                        &spinner,
+                                                        &open_file_history_menu,
+                                                        &db_manager,
+                                                        &file);
+                               }))
+        .build();
+
+
     let quit_action_entry: gio::ActionEntry<gtk::Application> = gio::ActionEntry::builder("quit")
         .activate(glib::clone!(#[weak] window, move |app: &gtk::Application, action: &gio::SimpleAction, user_data: Option<&glib::Variant>| {
             app.quit();
     })).build();
 
     let result: Vec<gio::ActionEntry<gtk::Application>> =
-        vec![file_action_entry, quit_action_entry];
+        vec![open_file_action_entry, open_file_from_history_action_entry, quit_action_entry];
     result
 }
 
@@ -800,15 +863,15 @@ impl MainWindow {
 
         let win = builder.object("window").unwrap();
 
-        let menu_ui_src = include_str!("menu.ui");
-        let menu_builder = gtk::Builder::new();
-        menu_builder.add_from_string(menu_ui_src).expect("failed add ui file to builder");
-        let open_file_history_menu: gio::Menu = menu_builder.object("file-history").expect("failed get file-history section");
-        let open_file_history_menu_arc = std::sync::Arc::new(std::sync::Mutex::new(open_file_history_menu));
-        let menu_model = menu_builder.object::<gio::MenuModel>("menu")
-            .expect("failed load menu");
-        let popover_menu = gtk::PopoverMenu::from_model(Some(&menu_model));
-        app.set_menubar(Some(&popover_menu.menu_model().unwrap()));
+        // let menu_ui_src = include_str!("menu.ui");
+        // let menu_builder = gtk::Builder::new();
+        // menu_builder.add_from_string(menu_ui_src).expect("failed add ui file to builder");
+        // let open_file_history_menu: gio::Menu = menu_builder.object("file-history").expect("failed get file-history section");
+        // let open_file_history_menu_arc = std::sync::Arc::new(std::sync::Mutex::new(open_file_history_menu));
+        // let menu_model = menu_builder.object::<gio::MenuModel>("menu")
+        //     .expect("failed load menu");
+        // let popover_menu = gtk::PopoverMenu::from_model(Some(&menu_model));
+        // app.set_menubar(Some(&popover_menu.menu_model().unwrap()));
 
         let result = MainWindow {
             window: win,
@@ -817,7 +880,7 @@ impl MainWindow {
             pages_info: std::sync::Arc::new(PagesInfo::default()),
             settings: std::sync::Arc::new(Settings::default()),
             view_window: gtk::ScrolledWindow::new(),
-            open_file_history_menu_arc: open_file_history_menu_arc,
+            // open_file_history_menu_arc: open_file_history_menu_arc,
         };
 
         result
@@ -836,30 +899,30 @@ impl MainWindow {
         let settings = &self.settings;
         *settings.is_dual_mode.lock().unwrap() = true;
 
-        let open_file_history_menu = &self.open_file_history_menu_arc;
+
         let xdg_config_path = utils::get_xdg_config_home();
         let sqlite_name = "simple_comics_viewer.db";
-        let sqlite_path = xdg_config_path + "/" + sqlite_name;
+        let sqlite_path = xdg_config_path.clone() + "/" + sqlite_name;
+        utils::create_config_dir(&xdg_config_path);
         let db_manager = file_history::DbManager::new(&sqlite_path);
         db_manager.init();
         let db_manager_arc = Arc::new(Mutex::new(db_manager));
         let db_manager_arc_ref = &db_manager_arc;
 
+        let menu_ui_src = include_str!("menu.ui");
+        let builder = gtk::Builder::new();
+        builder.add_from_string(menu_ui_src)?;
 
-        // let menu_ui_src = include_str!("menu.ui");
-        // let builder = gtk::Builder::new();
-        // builder.add_from_string(menu_ui_src)?;
+        let open_file_history_menu: gio::Menu = builder.object("file-history").expect("failed get file-history section");
+        let open_file_history_menu_arc = std::sync::Arc::new(std::sync::Mutex::new(open_file_history_menu));
+        let open_file_history_menu_arc_ref = &open_file_history_menu_arc;
+        set_open_file_history_menu(open_file_history_menu_arc_ref, db_manager_arc_ref);
 
-        // let open_file_history_menu: gio::Menu = builder.object("file-history").expect("failed get file-history section");
-        // update_open_file_history_menu(&open_file_history_menu, "first");
-        // let open_file_history_menu_arc = std::sync::Arc::new(std::sync::Mutex::new(open_file_history_menu));
+        let menu_model = builder.object::<gio::MenuModel>("menu")
+            .expect("failed load menu");
         
-
-        // let menu_model = builder.object::<gio::MenuModel>("menu")
-        //     .expect("failed load menu");
-        
-        // let popover_menu = gtk::PopoverMenu::from_model(Some(&menu_model));
-        // app.set_menubar(Some(&popover_menu.menu_model().unwrap()));
+        let popover_menu = gtk::PopoverMenu::from_model(Some(&menu_model));
+        app.set_menubar(Some(&popover_menu.menu_model().unwrap()));
 
         let pages_bar = gtk::ProgressBar::builder()
             .build();
@@ -900,7 +963,7 @@ impl MainWindow {
         }));
 
         let event_controller_key = EventControllerKey::builder().build();
-        let _ = event_controller_key.connect_key_pressed(glib::clone!(#[strong] app, #[strong] window, #[strong] image_container_list, #[strong] pages_info, #[strong] settings, #[strong] drawing_area, #[strong] pages_bar, #[strong] pages_info, #[strong] spinner, #[strong] open_file_history_menu, #[strong] db_manager_arc_ref, move |_event_controller_key: &EventControllerKey, keyval: gdk::Key, _keycode: u32, state: gdk::ModifierType| {
+        let _ = event_controller_key.connect_key_pressed(glib::clone!(#[strong] app, #[strong] window, #[strong] image_container_list, #[strong] pages_info, #[strong] settings, #[strong] drawing_area, #[strong] pages_bar, #[strong] pages_info, #[strong] spinner, #[strong] open_file_history_menu_arc_ref, #[strong] db_manager_arc_ref, move |_event_controller_key: &EventControllerKey, keyval: gdk::Key, _keycode: u32, state: gdk::ModifierType| {
             
             if state == gdk::ModifierType::ALT_MASK && keyval == gdk::Key::Return {
                 fullscreen(&window, &pages_bar);
@@ -908,7 +971,7 @@ impl MainWindow {
             }
 
             if state == gdk::ModifierType::CONTROL_MASK && keyval == gdk::Key::o {
-                open_file_action(&window, &image_container_list, &drawing_area, &pages_bar, &settings, &pages_info, &spinner, &open_file_history_menu, &db_manager_arc_ref);
+                open_file_action_with_dialog(&window, &image_container_list, &drawing_area, &pages_bar, &settings, &pages_info, &spinner, &open_file_history_menu_arc_ref, &db_manager_arc_ref);
                 return Propagation::Stop;
             }
 
@@ -1001,7 +1064,7 @@ impl MainWindow {
             pages_bar_ref,
             settings,
             spinner_ref,
-            open_file_history_menu,
+            open_file_history_menu_arc_ref,
             db_manager_arc_ref
         );
         app.add_action_entries(action_entry);
