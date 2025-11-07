@@ -51,9 +51,8 @@
             ];
 
             buildInputs = [
-              pkg-config
               openssl
-
+              
               # depend libs
               gtk4
               gdk-pixbuf
@@ -72,24 +71,24 @@
               zxing
               sqlite
 
-              # linker
-              mold
-
               # c and lib
-              clang
               glib
               zlib
               stdenv.cc.cc.lib
+            ];
+            nativeBuildInputs = with pkgs; [
+              # linker
+              mold
+
+              pkg-config
+              glibc.dev
+              clang
+
               llvmPackages.bintools
 
               # rust
               rust-bin.stable.latest.default
               rust-analyzer
-            ];
-            nativeBuildInputs = with pkgs; [
-              pkg-config
-              glibc.dev
-              clang
             ];
             shellHook = ''
             export XDG_DATA_DIRS=$GSETTINGS_SCHEMAS_PATH:$XDG_DATA_DIRS
