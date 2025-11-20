@@ -87,8 +87,11 @@
               llvmPackages.bintools
 
               # rust
-              rust-bin.stable.latest.default
+              (rust-bin.stable.latest.default.override {
+                extensions = [ "rust-src" ];
+              })
               rust-analyzer
+
             ];
             shellHook = ''
             export XDG_DATA_DIRS=$GSETTINGS_SCHEMAS_PATH:$XDG_DATA_DIRS
