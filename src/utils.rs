@@ -94,24 +94,29 @@ pub fn detect_file_type_from_bytes(bytes: &[u8]) -> FileType {
     let fifth = bytes[4];
 
     if first == 0xFF && second == 0xD8 && third == 0xFF {
+        println!("detect jpeg");
         return FileType::JPG;
     }
 
     if first == 0x89 && second == 0x50 && third == 0x4E && fourth == 0x47 {
+        println!("detect png");
         return FileType::PNG;
     }
 
     if first == 0x50 && second == 0x4B && third == 0x3 && fourth == 0x4 {
         if third == 0x3 && fourth == 0x4 {
+            println!("detect zip");
             return FileType::ZIP;
         }
 
         if third == 0x7 && fourth == 0x8 {
+            println!("detect spanned zip");
             return FileType::SpannedZip;
         }
     }
 
     if first == 0x25 && second == 0x50 && third == 0x44 && fourth == 0x46 && fifth == 0x2D {
+        println!("detect pdf");
         return FileType::PDF;
     }
 
