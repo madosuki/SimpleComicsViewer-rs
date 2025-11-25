@@ -54,21 +54,30 @@
               openssl
               
               # depend libs
+              # for gtk4
               gtk4
               gdk-pixbuf
               cairo
               freetype
               fontconfig
+
+              # libarchive
               libarchive
+
+              # mupdf
               mupdf
               gumbo
               jbig2dec
-              libpng
-              libjpeg
-              openjpeg
               leptonica
               tesseract
               zxing
+
+              # for gdk-pixbuf
+              libpng
+              libjpeg
+              openjpeg
+
+              # db
               sqlite
 
               # c and lib
