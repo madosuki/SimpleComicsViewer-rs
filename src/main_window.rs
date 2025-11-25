@@ -65,7 +65,6 @@ struct MainWindow {
     pages_info: std::sync::Arc<PagesInfo>,
     settings: std::sync::Arc<Settings>,
     view_window: gtk::ScrolledWindow,
-    // open_file_history_menu_arc: Arc<Mutex<gio::Menu>>
 }
 
 fn update_window_title(window: &gtk::ApplicationWindow, title_text: &str) {
@@ -379,7 +378,7 @@ fn update_open_file_history_menu(menu: &Arc<Mutex<gio::Menu>>, db_manager: &Arc<
     let unlock_menu = menu.lock().unwrap();
     unlock_menu.remove_all();
     for i in open_file_history_list {
-        let item = gio::MenuItem::new(Some(&i.path), Some("app.open_file"));
+        let item = gio::MenuItem::new(Some(&i.path), Some("app.open_file_from_history"));
         item.set_attribute_value("target", Some(&i.path.to_variant()));
         unlock_menu.append_item(&item);
     }
