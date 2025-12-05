@@ -65,7 +65,7 @@ jobs:
       - name: Upload AppImage to Release assets
         uses: softprops/action-gh-release@v2
         with:
-          prerelease: ${{ github.event.inputs.prerelease }}
+          # prerelease: ${{ github.event.inputs.prerelease }}
           files: ./artifact/Simple_Comics_Viewer-x86_64.AppImage
           tag_name: ${{ env.TAG_NAME }}
           target_commitish: ${{ github.sha }}
