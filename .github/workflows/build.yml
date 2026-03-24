@@ -39,9 +39,13 @@ jobs:
       run: |
         wget -c https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
         chmod +x ./linuxdeploy-x86_64.AppImage
+    - name: get linuxdeploy/linuxdeploy-plugin-gtk
+      run: |
+        wget -c "https://raw.githubusercontent.com/linuxdeploy/linuxdeploy-plugin-gtk/master/linuxdeploy-plugin-gtk.sh"
+        chmod +x ./linuxdeploy-plugin-gtk.sh
     - name: run linuxdeploy
       run: |
-        ./linuxdeploy-x86_64.AppImage -e ./target/release/simple_comics_viewer -d ./for_appimage_assets/simple_comics_viewer.desktop -i ./for_appimage_assets/icon.svg --appdir ./appimage_dir
+        ./linuxdeploy-x86_64.AppImage -e ./target/release/simple_comics_viewer -d ./for_appimage_assets/simple_comics_viewer.desktop -i ./for_appimage_assets/icon.svg --appdir ./appimage_dir --plugin gtk
     - name: run AppImageTool
       run: |
         ./appimagetool-x86_64.AppImage ./appimage_dir
