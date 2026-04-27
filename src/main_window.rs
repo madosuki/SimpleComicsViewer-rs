@@ -317,8 +317,13 @@ async fn read_dir_and_set_images(
         return false;
     };
     let mut count: usize = 0;
-    for entry in dir_path.read_dir().expect("Failed call read_dir") {
-        if let Ok(entry) = entry {
+
+    if let Ok(tmp_entries) = dir_path.read_dir() {
+        let mut entries: Vec<DirEntry> = tmp_entries.filter_map(Result::ok).collect();
+        entries.sort_by_key(|x| {
+            x.file_name().to_string_lossy()
+        });
+        for entry in entries {
             match entry.file_type() {
                 Ok(v) => {
                     if v.is_file() {
@@ -335,6 +340,7 @@ async fn read_dir_and_set_images(
             }
         }
     }
+
     if count == 0 {
         false
     } else {
