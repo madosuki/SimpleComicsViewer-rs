@@ -83,14 +83,14 @@
               # c and lib
               glib
               zlib
-              stdenv.cc.cc.lib
+              # stdenv.cc.cc.lib
             ];
             nativeBuildInputs = with pkgs; [
               # linker
               mold
 
               pkg-config
-              glibc.dev
+              # glibc.dev
               clang
 
               llvmPackages.bintools
@@ -101,6 +101,7 @@
               })
               rust-analyzer
 
+              gnupg
             ];
             shellHook = ''
             export XDG_DATA_DIRS=$GSETTINGS_SCHEMAS_PATH:$XDG_DATA_DIRS

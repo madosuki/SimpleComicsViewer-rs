@@ -6,9 +6,9 @@ edition = "2024"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-gtk4 = "0.10"
+gtk4 = "0.11"
 libarchive3-sys-by-madosuki = { git = "https://github.com/madosuki/libarchive3-sys-by-madosuki"}
 libarchive_extractor-rs = { git = "https://github.com/madosuki/libarchive_extractor-rs" }
-anyhow = "1.0.99"
-mupdf = { version = "0.5.0", features = ["sys-lib"]}
-rusqlite = "0.37.0"
+anyhow = "1.0.102"
+mupdf = { version = "0.6.0", features = ["sys-lib"]}
+rusqlite = "0.39.0"

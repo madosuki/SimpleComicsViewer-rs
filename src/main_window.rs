@@ -18,6 +18,7 @@ use gtk::{
 
 use anyhow::Result;
 
+use std::fs::DirEntry;
 use std::sync::Arc;
 use std::sync::Mutex;
 
@@ -320,9 +321,7 @@ async fn read_dir_and_set_images(
 
     if let Ok(tmp_entries) = dir_path.read_dir() {
         let mut entries: Vec<DirEntry> = tmp_entries.filter_map(Result::ok).collect();
-        entries.sort_by_key(|x| {
-            x.file_name().to_string_lossy()
-        });
+        entries.sort_by_key(|x| x.file_name().to_string_lossy().into_owned());
         for entry in entries {
             match entry.file_type() {
                 Ok(v) => {
@@ -367,12 +366,13 @@ fn set_open_file_history_menu(menu: &Arc<Mutex<gio::Menu>>, db_manager: &Arc<Mut
 
 fn update_open_file_history_menu(menu: &Arc<Mutex<gio::Menu>>, db_manager: &Arc<Mutex<file_history::DbManager>>, file_path: &str) {
     let unixtime = utils::get_current_unixtime().expect("failed get unixtime");
+    let unixtime_i64 = i64::try_from(unixtime).expect("failed convert u64 to i64 at unixtime");
 
     let unlock_db_manager = db_manager.lock().unwrap();
     if unlock_db_manager.is_exists_file_path(file_path) {
-        unlock_db_manager.update_history(file_path, unixtime);
+        unlock_db_manager.update_history(file_path, unixtime_i64);
     } else {
-        unlock_db_manager.add_history(file_path.to_owned(), unixtime);
+        unlock_db_manager.add_history(file_path.to_owned(), unixtime_i64);
     }
 
     
