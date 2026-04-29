@@ -398,14 +398,11 @@ fn update_open_file_history_menu(menu: &Arc<Mutex<gio::Menu>>, db_manager: &Arc<
         target_page_index = 0;
     }
 
-
-
     if unlock_db_manager.is_exists_file_path(file_path) {
         unlock_db_manager.update_history(file_path, unixtime_i64, target_page_index);
     } else {
         unlock_db_manager.add_history(file_path.to_owned(), unixtime_i64);
     }
-
     
     let open_file_history_list = unlock_db_manager.get_history();
     if open_file_history_list.is_empty() {
@@ -468,13 +465,23 @@ fn open_file_for_action (
                                             set_page_from_image_container_list(&image_container_list, &settings, &drawing_area_ref);
                                             *pages_info.loaded_filename.lock().unwrap() = Some(pathname.clone());
                                             update_window_title(&window, &pathname);
+                                            
 
                                             spinner.stop();
                                             spinner.hide();
 
                                             pages_bar.set_fraction(0.0);
                                             pages_bar.set_inverted(true);
-                                            // pages_bar.show();
+
+                                            let db_lock = db_manager.lock().unwrap();
+                                            if let Some(last_page_index) = (*db_lock).get_last_page_index(&pathname) {
+                                              drop(db_lock);
+                                              set_page(last_page_index as usize, &settings, &drawing_area_ref, &image_container_list, &pages_info, &db_manager);  
+                                            } else {
+                                              drop(db_lock);
+                                            };
+
+                                            
                                             drawing_area_ref.queue_draw();
 
                                             update_open_file_history_menu(&open_file_history_menu, &db_manager, &pathname);
@@ -826,31 +833,31 @@ fn fullscreen(
 }
 
 fn set_page(
-    n: usize,
+    page_index: usize,
     settings: &Settings,
     drawing_area: &DrawingArea,
     image_container_list: &Arc<Mutex<Vec<ImageContainer>>>,
     pages_info: &Arc<PagesInfo>,
     db_manager: &Arc<Mutex<file_history::DbManager>>) {
     let max_len = (*image_container_list.lock().unwrap()).len();
-    if n > max_len {
+    if page_index > max_len {
         return;
     }
-    
-    *pages_info.current_page_index.lock().unwrap() = n;
+
+    *pages_info.current_page_index.lock().unwrap() = page_index;
     if let Some(file_path) = pages_info.loaded_filename.lock().unwrap().as_deref() {
-        update_open_file_page_index(db_manager, file_path, n as i64);
+        update_open_file_page_index(db_manager, file_path, page_index as i64);
     }
 
     let height = drawing_area.allocated_height();
     let width = drawing_area.allocated_width();
     if *settings.is_dual_mode.lock().unwrap() {
-        scale_page_for_dual(&image_container_list, n, width, height);
+        scale_page_for_dual(&image_container_list, page_index, width, height);
     } else {
-        scale_page_for_single(&image_container_list, n, width, height);
+        scale_page_for_single(&image_container_list, page_index, width, height);
     }
 
-    drawing_area.queue_draw();
+    // drawing_area.queue_draw();
 }
 
 fn move_page(
@@ -908,6 +915,7 @@ fn move_page(
     }));
 
     set_page(finally_page_index, settings, drawing_area, image_container_list, pages_info, db_manager);
+    drawing_area.queue_draw();
 }
 
 impl MainWindow {

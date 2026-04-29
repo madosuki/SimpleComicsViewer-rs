@@ -58,7 +58,7 @@ impl DbManager {
     pub fn get_last_page_index(&self, file_path: &str) -> Option<i64> {
         let mut stmt = self.conn.prepare("select last_show_page_index from open_file_history where location_path = ?").unwrap();
         let mut stmt_iter = stmt.query_map([file_path], |row| {
-            let last_show_page_index: i64 = row.get(3).unwrap();
+            let last_show_page_index: i64 = row.get(0).unwrap();
             Ok(last_show_page_index)
         }).unwrap();
 
