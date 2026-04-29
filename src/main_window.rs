@@ -538,6 +538,17 @@ fn open_file_for_action (
                                             pages_bar.set_fraction(0.0);
                                             pages_bar.set_inverted(true);
                                             // pages_bar.show();
+
+
+                                            let db_lock = db_manager.lock().unwrap();
+                                            if let Some(last_page_index) = (*db_lock).get_last_page_index(&pathname) {
+                                              drop(db_lock);
+                                              set_page(last_page_index as usize, &settings, &drawing_area_ref, &image_container_list, &pages_info, &db_manager);  
+                                            } else {
+                                              drop(db_lock);
+                                            };
+
+                                            
                                             drawing_area_ref.queue_draw();
                                             update_open_file_history_menu(&open_file_history_menu, &db_manager, &pathname);
 
