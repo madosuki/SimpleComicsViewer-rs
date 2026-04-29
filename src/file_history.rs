@@ -79,7 +79,7 @@ impl DbManager {
     pub fn get_history(&self) -> Vec<FileHistory> {
         let mut file_history_list: Vec<FileHistory> = vec!();
 
-        let mut stmt = self.conn.prepare("select id, path, unixtime from open_file_history order by unixtime desc limit 10").unwrap();
+        let mut stmt = self.conn.prepare("select id, path, unixtime, last_show_page_index from open_file_history order by unixtime desc limit 10").unwrap();
         let stmt_iter = stmt.query_map([], |row| {
             let unixtime: i64 = row.get(2).unwrap();
             Ok (FileHistory {
