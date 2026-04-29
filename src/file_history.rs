@@ -3,7 +3,7 @@ use rusqlite::{Connection, OpenFlags, params};
 #[derive(Debug)]
 pub struct FileHistory {
     id: i32,
-    pub path: String,
+    pub location_path: String,
     unixtime: i64,
     last_show_page_index: i64,
 }
@@ -79,12 +79,12 @@ impl DbManager {
     pub fn get_history(&self) -> Vec<FileHistory> {
         let mut file_history_list: Vec<FileHistory> = vec!();
 
-        let mut stmt = self.conn.prepare("select id, path, unixtime, last_show_page_index from open_file_history order by unixtime desc limit 10").unwrap();
+        let mut stmt = self.conn.prepare("select id, location_path, unixtime, last_show_page_index from open_file_history order by unixtime desc limit 10").unwrap();
         let stmt_iter = stmt.query_map([], |row| {
             let unixtime: i64 = row.get(2).unwrap();
             Ok (FileHistory {
                 id: row.get(0).unwrap(),
-                path: row.get(1).unwrap(),
+                location_path: row.get(1).unwrap(),
                 unixtime: row.get(2).unwrap(),
                 last_show_page_index: row.get(3).unwrap()
             })
