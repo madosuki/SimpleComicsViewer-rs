@@ -22,28 +22,28 @@ impl DbManager {
     }
 
     pub fn init(&self) {
-        self.conn.execute("create table if not exists open_file_history (id integer primary key autoincrement, path text not null unique, unixtime integer not null)",
+        self.conn.execute("create table if not exists open_file_history (id integer primary key autoincrement, location_path text not null unique, unixtime integer not null, last_show_page_index integer not null)",
                           ()).unwrap();
     }
 
     pub fn add_history(&self, file_path: String, unixtime: i64) {
-        self.conn.execute("insert into open_file_history (path, unixtime, last_show_page_index) values(?1, ?2, ?3)",
+        self.conn.execute("insert into open_file_history (location_path, unixtime, last_show_page_index) values(?1, ?2, ?3)",
                           params![file_path, unixtime, 0]).unwrap();
     }
 
     pub fn update_history(&self, file_path: &str, unixtime: i64, page_index: i64) {
-        self.conn.execute("update open_file_history set unixtime = ?1, last_show_page_index = ?2 where path = ?3",
+        self.conn.execute("update open_file_history set unixtime = ?1, last_show_page_index = ?2 where location_path = ?3",
                           params![unixtime, page_index, file_path.to_owned()]).unwrap();
     }
 
     pub fn update_page_index(&self, file_path: &str, page_index: i64) {
-        self.conn.execute("update open_file_history set last_show_page_index = ?1 where path = ?2",
+        self.conn.execute("update open_file_history set last_show_page_index = ?1 where location_path = ?2",
                           params![page_index, file_path.to_owned()]).unwrap();
         
     }
 
     pub fn is_exists_file_path(&self, file_path: &str) -> bool {
-        let mut stmt = self.conn.prepare("select id from open_file_history where path = ?").unwrap();
+        let mut stmt = self.conn.prepare("select id from open_file_history where location_path = ?").unwrap();
         let stmt_iter = stmt.query_map([file_path], |row| {
             let id: i32 = row.get(0).unwrap();
             Ok(id)
@@ -56,7 +56,7 @@ impl DbManager {
     }
 
     pub fn get_last_page_index(&self, file_path: &str) -> Option<i64> {
-        let mut stmt = self.conn.prepare("select last_show_page_index from open_file_history where path = ?").unwrap();
+        let mut stmt = self.conn.prepare("select last_show_page_index from open_file_history where location_path = ?").unwrap();
         let mut stmt_iter = stmt.query_map([file_path], |row| {
             let last_show_page_index: i64 = row.get(3).unwrap();
             Ok(last_show_page_index)
