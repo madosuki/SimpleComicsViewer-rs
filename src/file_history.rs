@@ -5,6 +5,7 @@ pub struct FileHistory {
     id: i32,
     pub path: String,
     unixtime: i64,
+    last_show_page_index: i64,
 }
 
 pub struct DbManager {
@@ -26,11 +27,19 @@ impl DbManager {
     }
 
     pub fn add_history(&self, file_path: String, unixtime: i64) {
-        self.conn.execute("insert into open_file_history (path, unixtime) values(?1, ?2)", params![file_path, unixtime]).unwrap();
+        self.conn.execute("insert into open_file_history (path, unixtime, last_show_page_index) values(?1, ?2, ?3)",
+                          params![file_path, unixtime, 0]).unwrap();
     }
 
-    pub fn update_history(&self, file_path: &str, unixtime: i64) {
-        self.conn.execute("update open_file_history set unixtime = ?1 where path = ?2", params![unixtime, file_path.to_owned()]).unwrap();
+    pub fn update_history(&self, file_path: &str, unixtime: i64, page_index: i64) {
+        self.conn.execute("update open_file_history set unixtime = ?1, last_show_page_index = ?2 where path = ?3",
+                          params![unixtime, page_index, file_path.to_owned()]).unwrap();
+    }
+
+    pub fn update_page_index(&self, file_path: &str, page_index: i64) {
+        self.conn.execute("update open_file_history set last_show_page_index = ?1 where path = ?2",
+                          params![page_index, file_path.to_owned()]).unwrap();
+        
     }
 
     pub fn is_exists_file_path(&self, file_path: &str) -> bool {
@@ -46,6 +55,27 @@ impl DbManager {
         }
     }
 
+    pub fn get_last_page_index(&self, file_path: &str) -> Option<i64> {
+        let mut stmt = self.conn.prepare("select last_show_page_index from open_file_history where path = ?").unwrap();
+        let mut stmt_iter = stmt.query_map([file_path], |row| {
+            let last_show_page_index: i64 = row.get(3).unwrap();
+            Ok(last_show_page_index)
+        }).unwrap();
+
+        if let Some(last_show_page_index) = stmt_iter.next() {
+            match last_show_page_index {
+                Ok(v) => {
+                    return Some(v);
+                },
+                Err(e) => {
+                    eprintln!("{e}");
+                    return None;
+                }
+            }
+        };
+        None
+    }
+
     pub fn get_history(&self) -> Vec<FileHistory> {
         let mut file_history_list: Vec<FileHistory> = vec!();
 
@@ -55,7 +85,8 @@ impl DbManager {
             Ok (FileHistory {
                 id: row.get(0).unwrap(),
                 path: row.get(1).unwrap(),
-                unixtime: row.get(2).unwrap()
+                unixtime: row.get(2).unwrap(),
+                last_show_page_index: row.get(3).unwrap()
             })
         }).unwrap();
         for result in stmt_iter {

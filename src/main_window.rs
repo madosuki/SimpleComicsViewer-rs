@@ -41,6 +41,18 @@ struct Settings {
     is_dual_mode: Arc<Mutex<bool>>,
 }
 
+// #[derive(Default)]
+// struct AppStatus {
+//     is_file_opend: Arc<Mutex<bool>>,
+// }
+// fn update_val_of_is_file_opend_app_status(app_status: &Arc<AppStatus>, is_file_opend: bool) {
+//     *app_status.is_file_opend.lock().unwrap() = is_file_opend;
+// }
+// fn get_val_of_is_file_opend_app_status(app_status: &Arc<AppStatus>) -> bool {
+//     app_status.is_file_opend.lock().unwrap().clone()
+// }
+
+
 #[derive(Default)]
 struct MarginData {
     left_margin: i32,
@@ -362,15 +374,34 @@ fn set_open_file_history_menu(menu: &Arc<Mutex<gio::Menu>>, db_manager: &Arc<Mut
         item.set_attribute_value("target", Some(&i.path.to_variant()));
         unlock_menu.append_item(&item);
     }
-} 
+}
+
+fn update_open_file_page_index(db_manager: &Arc<Mutex<file_history::DbManager>>, file_path: &str, page_index: i64) {
+    let unlock_db_manager = db_manager.lock().unwrap();
+    
+    if unlock_db_manager.is_exists_file_path(file_path) {
+        unlock_db_manager.update_page_index(file_path, page_index);
+    }
+}
 
 fn update_open_file_history_menu(menu: &Arc<Mutex<gio::Menu>>, db_manager: &Arc<Mutex<file_history::DbManager>>, file_path: &str) {
     let unixtime = utils::get_current_unixtime().expect("failed get unixtime");
     let unixtime_i64 = i64::try_from(unixtime).expect("failed convert u64 to i64 at unixtime");
 
     let unlock_db_manager = db_manager.lock().unwrap();
+
+    let target_page_index;
+    let tmp = unlock_db_manager.get_last_page_index(file_path);
+    if tmp.is_some() {
+        target_page_index = tmp.unwrap();
+    } else {
+        target_page_index = 0;
+    }
+
+
+
     if unlock_db_manager.is_exists_file_path(file_path) {
-        unlock_db_manager.update_history(file_path, unixtime_i64);
+        unlock_db_manager.update_history(file_path, unixtime_i64, target_page_index);
     } else {
         unlock_db_manager.add_history(file_path.to_owned(), unixtime_i64);
     }
@@ -391,6 +422,8 @@ fn update_open_file_history_menu(menu: &Arc<Mutex<gio::Menu>>, db_manager: &Arc<
 
 }
 
+
+// open file action
 fn open_file_for_action (
     window: &gtk::ApplicationWindow,
     image_container_list: &Arc<Mutex<Vec<ImageContainer>>>,
@@ -792,13 +825,42 @@ fn fullscreen(
     }
 }
 
+fn set_page(
+    n: usize,
+    settings: &Settings,
+    drawing_area: &DrawingArea,
+    image_container_list: &Arc<Mutex<Vec<ImageContainer>>>,
+    pages_info: &Arc<PagesInfo>,
+    db_manager: &Arc<Mutex<file_history::DbManager>>) {
+    let max_len = (*image_container_list.lock().unwrap()).len();
+    if n > max_len {
+        return;
+    }
+    
+    *pages_info.current_page_index.lock().unwrap() = n;
+    if let Some(file_path) = pages_info.loaded_filename.lock().unwrap().as_deref() {
+        update_open_file_page_index(db_manager, file_path, n as i64);
+    }
+
+    let height = drawing_area.allocated_height();
+    let width = drawing_area.allocated_width();
+    if *settings.is_dual_mode.lock().unwrap() {
+        scale_page_for_dual(&image_container_list, n, width, height);
+    } else {
+        scale_page_for_single(&image_container_list, n, width, height);
+    }
+
+    drawing_area.queue_draw();
+}
+
 fn move_page(
-    n: i32,
+    n: i64,
     settings: &Settings,
     drawing_area: &DrawingArea,
     pages_bar: &gtk::ProgressBar,
     image_container_list: &Arc<Mutex<Vec<ImageContainer>>>,
     pages_info: &Arc<PagesInfo>,
+    db_manager: &Arc<Mutex<file_history::DbManager>>,
 ) {
     if n == 0 || (*image_container_list.lock().unwrap()).is_empty() {
         return;
@@ -811,32 +873,31 @@ fn move_page(
         return;
     }
 
-    let mut result = if n > -1 {
+    let mut finally_page_index = if n > -1 {
         i + (n as usize)
     } else {
         i - (n.abs() as usize)
     };
-    if size <= result {
+    if size <= finally_page_index {
         return;
     }
 
-    if result >= size {
-        result = size - 1;
+    if finally_page_index >= size {
+        finally_page_index = size - 1;
     }
 
     let step_of_result = if is_dual { 2 } else { 1 };
-    let tmp_step_left = if is_dual { (result + step_of_result) as f64 } else { (result + 1) as f64 };
+    let tmp_step_left = if is_dual { (finally_page_index + step_of_result) as f64 } else { (finally_page_index + 1) as f64 };
     let tmp_step_right = size as f64;
-    let step = if (result + step_of_result) >= size {
+    let progress_step = if (finally_page_index + step_of_result) >= size {
         1.0
-    } else if result == 0 {
+    } else if finally_page_index == 0 {
         0.0
     } else {
         tmp_step_left / tmp_step_right
     };
-    // println!("result: {}", result);
-    // println!("step: ${}", step);
-    pages_bar.set_fraction(step);
+
+    pages_bar.set_fraction(progress_step);
     pages_bar.show();
 
     glib::spawn_future_local(glib::clone!(#[weak] pages_bar, async move {
@@ -846,17 +907,7 @@ fn move_page(
         });
     }));
 
-    // _pages_info.current_page_index.replace(_result);
-    *pages_info.current_page_index.lock().unwrap() = result;
-    let height = drawing_area.allocated_height();
-    let width = drawing_area.allocated_width();
-    if *settings.is_dual_mode.lock().unwrap() {
-        scale_page_for_dual(&image_container_list, result, width, height);
-    } else {
-        scale_page_for_single(&image_container_list, result, width, height);
-    }
-
-    drawing_area.queue_draw();
+    set_page(finally_page_index, settings, drawing_area, image_container_list, pages_info, db_manager);
 }
 
 impl MainWindow {
@@ -1046,7 +1097,15 @@ impl MainWindow {
                 _ => is_move = false
             }
             if is_move {
-                move_page(additional_val, &settings, &drawing_area, &pages_bar, &image_container_list, &pages_info);
+                move_page(
+                    additional_val,
+                    &settings,
+                    &drawing_area,
+                    &pages_bar,
+                    &image_container_list,
+                    &pages_info,
+                    &db_manager_arc_ref,
+                );
             }
             Propagation::Stop
         }));
