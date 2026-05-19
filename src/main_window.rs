@@ -30,10 +30,18 @@ use crate::utils;
 use image_container::{ImageContainer, ImageContainerEx};
 
 #[derive(Default)]
+enum PageDirection {
+    #[default]
+    RightToLeft,
+    LeftToRight,
+}
+
+#[derive(Default)]
 struct PagesInfo {
     current_page_index: Arc<Mutex<usize>>,
     loaded_filename: Arc<Mutex<Option<String>>>,
     loaded_dirname: Arc<Mutex<Option<String>>>,
+    page_direction: Arc<Mutex<PageDirection>>
 }
 
 #[derive(Default)]
