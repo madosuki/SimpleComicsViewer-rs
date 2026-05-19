@@ -201,6 +201,7 @@ fn scale_page_for_dual(
     }
 
     let next_index = current_page_index + 1;
+    
     let _image_container_list_len = image_container_list_ptr.len();
 
     let final_target_width = target_width / 2;
@@ -265,19 +266,19 @@ fn get_file_path_from_file_desc(file: &gio::File) -> Option<String> {
     Some(pathname.to_owned())
 }
 
-fn set_page_from_image_container_list(
+fn allocate_drawing_area_and_scale_init_from_image_container (
     image_container_list: &Arc<Mutex<Vec<ImageContainer>>>,
     settings: &Arc<Settings>,
+    pos: usize,
     drawing_area_ref: &DrawingArea,
 ) {
     let width = drawing_area_ref.allocated_width();
     let height = drawing_area_ref.allocated_height();
-    let count = 0;
     let is_dual_model = settings.is_dual_mode.lock().unwrap();
     if *is_dual_model {
-        scale_page_for_dual(image_container_list, count, width, height);
+        scale_page_for_dual(image_container_list, pos, width, height);
     } else {
-        scale_page_for_single(image_container_list, count, width, height);
+        scale_page_for_single(image_container_list, 0, width, height);
     }
 }
 
@@ -470,7 +471,7 @@ fn open_file_for_action (
                                 Ok(v) => {
                                     match v {
                                         ResultLoadFilesWithMultiThread::Success => {
-                                            set_page_from_image_container_list(&image_container_list, &settings, &drawing_area_ref);
+                                            allocate_drawing_area_and_scale_init_from_image_container(&image_container_list, &settings, 0, &drawing_area_ref);
                                             *pages_info.loaded_filename.lock().unwrap() = Some(pathname.clone());
                                             update_window_title(&window, &pathname);
                                             
@@ -535,7 +536,10 @@ fn open_file_for_action (
                                     match v {
                                         ResultLoadFilesWithMultiThread::Success => {
                                             set_image_to_image_container_from_pdf_pixmaps(&image_container_list, &pdf_pixmaps_arc);
-                                            set_page_from_image_container_list(&image_container_list, &settings, &drawing_area_ref);
+                                            allocate_drawing_area_and_scale_init_from_image_container(&image_container_list,
+                                                                                                      &settings,
+                                                                                                      0,
+                                                                                                      &drawing_area_ref);
                                             *pages_info.loaded_filename.lock().unwrap() = Some(pathname.clone());
                                             update_window_title(&window, &pathname);
 
@@ -601,7 +605,7 @@ fn open_file_for_action (
                 }
                     
                 glib::idle_add_local_once(glib::clone!(#[strong] image_container_list, #[strong] settings, #[weak] drawing_area_ref, move || {
-                    set_page_from_image_container_list(&image_container_list, &settings, &drawing_area_ref);
+                    allocate_drawing_area_and_scale_init_from_image_container(&image_container_list, &settings, 0, &drawing_area_ref);
                     drawing_area_ref.queue_draw();
                 }));
             }));
@@ -742,17 +746,15 @@ fn draw_single_page(
     let _ = ctx.paint();
 }
 
-fn draw_dual_page(
+fn draw_right_to_left_when_dual(
     image_container_list: &Vec<ImageContainer>,
     pages_info: &PagesInfo,
     settings: &Settings,
     area: &DrawingArea,
     ctx: &cairo::Context,
+    right_index: usize,
+    left_index: usize,
 ) {
-    // let _index = _pages_info.current_page_index.as_ref().borrow().clone();
-    let index = pages_info.current_page_index.lock().unwrap().clone();
-    let right_index = index;
-    let left_index = index + 1;
     let half_area_width = area.allocated_width() / 2;
 
     let Some(right) = image_container_list[right_index].get_modified_pixbuf_data() else {
@@ -836,6 +838,122 @@ fn draw_dual_page(
     let _ = ctx.paint();
 }
 
+
+fn draw_left_to_right_when_dual(
+  image_container_list: &Vec<ImageContainer>,
+  pages_info: &PagesInfo,
+  settings: &Settings,
+  area: &DrawingArea,
+  ctx: &cairo::Context,
+  right_index: usize,
+  left_index: usize,
+) {
+    let half_area_width = area.allocated_width() / 2;
+
+    let Some(left) = image_container_list[left_index].get_modified_pixbuf_data() else {
+        return;
+    };
+    let left_format = if left.has_alpha() {
+        cairo::Format::ARgb32
+    } else {
+        cairo::Format::Rgb24
+    };
+    let pix_w = left.width();
+    let pix_h = left.height();
+    let Ok(surface_for_left) = cairo::ImageSurface::create(left_format, pix_w, pix_h) else {
+        return;
+    };
+
+    let left_pos = 0.0;
+
+    if right_index >= image_container_list.len() {
+        // FIXME: refelect page dirction. current is only support right to left.
+        let margin = calc_margin_for_single(&left, area.allocated_width(), area.allocated_height());
+        let top_margin = f64::from(margin.top_margin);
+
+        let _ = ctx.set_source_surface(&surface_for_left, left_pos, top_margin);
+        let _ = ctx.set_source_pixbuf(&left, left_pos, top_margin);
+        let _ = ctx.paint();
+        return;
+    }
+
+    let Some(right) = image_container_list[right_index].get_modified_pixbuf_data() else {
+        let _ = ctx.set_source_surface(&surface_for_left, left_pos, 0.0);
+        let _ = ctx.set_source_pixbuf(&left, left_pos, 0.0);
+        let _ = ctx.paint();
+        return;
+    };
+    let right_format = if right.has_alpha() {
+        cairo::Format::ARgb32
+    } else {
+        cairo::Format::Rgb24
+    };
+
+    let margin = calc_margin_for_dual(
+        &left,
+        &right,
+        area.allocated_width(),
+        area.allocated_height(),
+    );
+    let left_margin = f64::from(margin.left_margin);
+    let top_margin_for_left = f64::from(margin.top_margin_for_left);
+    let top_margin_for_right = f64::from(margin.top_margin_for_right);
+
+    let left_pic_width = left.width();
+    let right_pic_width = right.width();
+    let final_left_margin = if left_pic_width > half_area_width || left_pic_width == half_area_width
+    {
+        0.0
+    } else {
+        left_margin
+    };
+
+    let right_margin = if left_pic_width > half_area_width {
+        final_left_margin + f64::from(left_pic_width)
+    } else {
+        left_margin + f64::from(left_pic_width)
+    };
+
+
+    let _ = ctx.set_source_surface(&surface_for_left, right_margin, top_margin_for_right);
+    let _ = ctx.set_source_pixbuf(&right, right_margin, top_margin_for_right);
+    let _ = ctx.paint();
+
+    let Ok(surface_for_left) =
+        cairo::ImageSurface::create(left_format, left.width(), left.height())
+    else {
+        return;
+    };
+    let _ = ctx.set_source_surface(&surface_for_left, final_left_margin, top_margin_for_left);
+    let _ = ctx.set_source_pixbuf(&left, final_left_margin, top_margin_for_left);
+    let _ = ctx.paint();
+}
+
+fn draw_dual_page(
+    image_container_list: &Vec<ImageContainer>,
+    pages_info: &PagesInfo,
+    settings: &Settings,
+    area: &DrawingArea,
+    ctx: &cairo::Context,
+) {
+    // let _index = _pages_info.current_page_index.as_ref().borrow().clone();
+    let page_direction = pages_info.page_direction.lock().unwrap();
+    let index = pages_info.current_page_index.lock().unwrap().clone();
+    let right_index = match *page_direction {
+        PageDirection::RightToLeft => index,
+        PageDirection::LeftToRight => index + 1,
+    };
+    let left_index = match *page_direction {
+        PageDirection::RightToLeft => index + 1,
+        PageDirection::LeftToRight => index,
+    };
+
+    match *page_direction {
+        PageDirection::RightToLeft => draw_right_to_left_when_dual(image_container_list, pages_info, settings, area, ctx, right_index, left_index),
+        PageDirection::LeftToRight => draw_left_to_right_when_dual(image_container_list, pages_info, settings, area, ctx, right_index, left_index),
+    }
+}
+
 fn fullscreen(
     window: &gtk::ApplicationWindow,
     pages_bar: &gtk::ProgressBar,
@@ -879,6 +997,22 @@ fn set_page(
     // drawing_area.queue_draw();
 }
 
+fn get_move_page_number(is_left_key: bool, pages_info: &Arc<PagesInfo>) -> i64 {
+    let page_direction = pages_info.page_direction.lock().unwrap();
+
+    if is_left_key {
+        match *page_direction {
+            PageDirection::RightToLeft => 2,
+            PageDirection::LeftToRight => -2,
+        }
+    } else {
+        match *page_direction {
+            PageDirection::RightToLeft => -2,
+            PageDirection::LeftToRight => 2,
+        }
+    }
+}
+
 fn move_page(
     n: i64,
     settings: &Settings,
@@ -893,13 +1027,14 @@ fn move_page(
     }
 
     let is_dual = *settings.is_dual_mode.lock().unwrap();
+    let page_direction = pages_info.page_direction.lock().unwrap();
     let size = (*image_container_list.lock().unwrap()).len();
     let i = pages_info.current_page_index.lock().unwrap().clone();
     if i == 0 && n < 0 {
         return;
     }
 
-    let mut finally_page_index = if n > -1 {
+    let finally_page_index = if n > -1 {
         i + (n as usize)
     } else {
         i - (n.abs() as usize)
@@ -908,9 +1043,9 @@ fn move_page(
         return;
     }
 
-    if finally_page_index >= size {
-        finally_page_index = size - 1;
-    }
+    // if finally_page_index >= size {
+    //     finally_page_index = size - 1;
+    // }
 
     let step_of_result = if is_dual { 2 } else { 1 };
     let tmp_step_left = if is_dual { (finally_page_index + step_of_result) as f64 } else { (finally_page_index + 1) as f64 };
@@ -969,7 +1104,7 @@ impl MainWindow {
         result
     }
 
-    fn init(&self, app: &Application, width: i32, height: i32) -> Result<()> {
+fn init(&self, app: &Application, width: i32, height: i32) -> Result<()> {
         // let _header_bar = gtk::HeaderBar::builder().build();
         // self.window.set_titlebar(Some(&_header_bar));
         self.window.set_title(Some("Simple Comics Viewer"));
@@ -1069,8 +1204,7 @@ impl MainWindow {
                 },
                 gdk::Key::Left => {
                     if *settings.is_dual_mode.lock().unwrap() {
-                        // when right to left mode
-                        additional_val = 2;
+                        additional_val = get_move_page_number(true,&pages_info);
                     } else {
                         additional_val = 1;
                     }
@@ -1078,7 +1212,7 @@ impl MainWindow {
                 },
                 gdk::Key::h => {
                     if *settings.is_dual_mode.lock().unwrap() {
-                        additional_val = 2;
+                        additional_val = get_move_page_number(true, &pages_info);
                     } else {
                         additional_val = 1;
                     }
@@ -1087,7 +1221,7 @@ impl MainWindow {
                 gdk::Key::b => {
                     if is_pressed_ctrl {
                         if *settings.is_dual_mode.lock().unwrap() {
-                            additional_val = 2;
+                            additional_val = get_move_page_number(true, &pages_info);
                         } else {
                             additional_val = 1;
                         }
@@ -1096,8 +1230,7 @@ impl MainWindow {
                 },
                 gdk::Key::Right => {
                     if *settings.is_dual_mode.lock().unwrap() {
-                        // when right to left mode
-                        additional_val = -2;
+                        additional_val = get_move_page_number(false, &pages_info);
                     } else {
                         additional_val = -1;
                     }
@@ -1105,7 +1238,7 @@ impl MainWindow {
                 },
                 gdk::Key::l => {
                     if *settings.is_dual_mode.lock().unwrap() {
-                        additional_val = -2;
+                        additional_val = get_move_page_number(false, &pages_info);
                     } else {
                         additional_val = -1;
                     }
@@ -1114,7 +1247,7 @@ impl MainWindow {
                 gdk::Key::f => {
                     if is_pressed_ctrl {
                         if *settings.is_dual_mode.lock().unwrap() {
-                            additional_val = -2;
+                            additional_val = get_move_page_number(true, &pages_info);
                         } else {
                             additional_val = -1;
                         }
