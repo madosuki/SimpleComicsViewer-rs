@@ -490,14 +490,9 @@ fn open_file_for_action (
 
                                             restore_pages_info(&db_manager, &pages_info, &pathname);
                                             sync_page_direction_action_state(&app, &pages_info);
-                                            
-                                            let db_lock = db_manager.lock().unwrap();
-                                            if let Some(last_page_index) = (*db_lock).get_last_page_index(&pathname) {
-                                              drop(db_lock);
-                                              set_page(last_page_index as usize, &settings, &drawing_area_ref, &image_container_list, &pages_info, &db_manager);  
-                                            } else {
-                                              drop(db_lock);
-                                            };
+
+                                            let restored_page_index = *pages_info.current_page_index.lock().unwrap();
+                                            set_page(restored_page_index, &settings, &drawing_area_ref, &image_container_list, &pages_info, &db_manager);  
                                             
                                             drawing_area_ref.queue_draw();
 
@@ -560,16 +555,10 @@ fn open_file_for_action (
 
                                             restore_pages_info(&db_manager, &pages_info, &pathname);
                                             sync_page_direction_action_state(&app, &pages_info);
+
+                                            let restored_page_index = *pages_info.current_page_index.lock().unwrap();
+                                            set_page(restored_page_index, &settings, &drawing_area_ref, &image_container_list, &pages_info, &db_manager);  
                                             
-                                            let db_lock = db_manager.lock().unwrap();
-                                            if let Some(last_page_index) = (*db_lock).get_last_page_index(&pathname) {
-                                                drop(db_lock);
-                                                set_page(last_page_index as usize, &settings, &drawing_area_ref, &image_container_list, &pages_info, &db_manager);  
-                                            } else {
-                                                drop(db_lock);
-                                            };
-
-
                                             drawing_area_ref.queue_draw();
                                             update_open_file_history_menu(&open_file_history_menu, &db_manager, &pathname, &pages_info);
 
