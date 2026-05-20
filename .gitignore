@@ -15,4 +15,7 @@ Cargo.lock
 
 .direnv
 
-.codex
+.codex/
+
+.agents/
+.claude/

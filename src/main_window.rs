@@ -1,11 +1,14 @@
-use gtk4::glib::variant::ToVariant;
+use std::str::FromStr;
+
+use gtk4::glib::variant::{StaticVariantType, ToVariant};
 use gtk4::glib::VariantTy;
 use gtk4 as gtk;
 use gtk::gdk;
+use gtk::glib::object::Cast;
 
 use gtk::glib::Propagation;
 use gtk::prelude::{
-    ActionMapExtManual, ApplicationExt, ApplicationWindowExt, BoxExt, DialogExt, DrawingAreaExt,
+    ActionMapExt, ActionMapExtManual, ApplicationExt, ApplicationWindowExt, BoxExt, DialogExt, DrawingAreaExt,
     DrawingAreaExtManual, FileChooserExt, FileChooserExtManual, FileExt, GdkCairoContextExt,
     GridExt, GtkApplicationExt, GtkWindowExt, MenuLinkIterExt, MenuModelExt, PixbufLoaderExt,
     PopoverExt, SurfaceExt, WidgetExt,
@@ -22,19 +25,16 @@ use std::fs::DirEntry;
 use std::sync::Arc;
 use std::sync::Mutex;
 
+use crate::types;
 use crate::file_history;
 use crate::pdf_loader::PdfPixmap;
 use crate::{image_container, pdf_loader};
 use crate::image_loader;
 use crate::utils;
+
+use types::PageDirection;
 use image_container::{ImageContainer, ImageContainerEx};
 
-#[derive(Default)]
-enum PageDirection {
-    #[default]
-    RightToLeft,
-    LeftToRight,
-}
 
 #[derive(Default)]
 struct PagesInfo {
@@ -393,7 +393,7 @@ fn update_open_file_page_index(db_manager: &Arc<Mutex<file_history::DbManager>>,
     }
 }
 
-fn update_open_file_history_menu(menu: &Arc<Mutex<gio::Menu>>, db_manager: &Arc<Mutex<file_history::DbManager>>, file_path: &str) {
+fn update_open_file_history_menu(menu: &Arc<Mutex<gio::Menu>>, db_manager: &Arc<Mutex<file_history::DbManager>>, file_path: &str, pages_info: &Arc<PagesInfo>) {
     let unixtime = utils::get_current_unixtime().expect("failed get unixtime");
     let unixtime_i64 = i64::try_from(unixtime).expect("failed convert u64 to i64 at unixtime");
 
@@ -407,10 +407,15 @@ fn update_open_file_history_menu(menu: &Arc<Mutex<gio::Menu>>, db_manager: &Arc<
         target_page_index = 0;
     }
 
+    let page_dirction_mutex = pages_info.page_direction.lock().unwrap();
+    let page_direction = match *page_dirction_mutex {
+        PageDirection::RightToLeft => PageDirection::RightToLeft,
+        PageDirection::LeftToRight => PageDirection::LeftToRight,
+    };
     if unlock_db_manager.is_exists_file_path(file_path) {
-        unlock_db_manager.update_history(file_path, unixtime_i64, target_page_index);
+        unlock_db_manager.update_history(file_path, unixtime_i64, target_page_index, page_direction);
     } else {
-        unlock_db_manager.add_history(file_path.to_owned(), unixtime_i64);
+        unlock_db_manager.add_history(file_path.to_owned(), unixtime_i64, page_direction);
     }
     
     let open_file_history_list = unlock_db_manager.get_history();
@@ -431,6 +436,7 @@ fn update_open_file_history_menu(menu: &Arc<Mutex<gio::Menu>>, db_manager: &Arc<
 
 // open file action
 fn open_file_for_action (
+    app: &gtk::Application,
     window: &gtk::ApplicationWindow,
     image_container_list: &Arc<Mutex<Vec<ImageContainer>>>,
     drawing_area_ref: &DrawingArea,
@@ -463,7 +469,7 @@ fn open_file_for_action (
                         }
                     });
                     
-                    glib::spawn_future_local(glib::clone!(#[weak] window, #[strong] image_container_list, #[strong] settings, #[weak] drawing_area_ref, #[strong] pages_info, #[weak] pages_bar, #[weak] spinner, #[weak] db_manager,  #[weak] open_file_history_menu, async move {
+                    glib::spawn_future_local(glib::clone!(#[weak] app, #[weak] window, #[strong] image_container_list, #[strong] settings, #[weak] drawing_area_ref, #[strong] pages_info, #[weak] pages_bar, #[weak] spinner, #[weak] db_manager,  #[weak] open_file_history_menu, async move {
                         update_window_title(&window, "Now Loading...");
 
                         let _source_id = glib::idle_add_local(glib::clone!(#[strong] image_container_list, #[strong] settings, #[strong] drawing_area_ref, #[strong] pages_bar, move || {
@@ -482,6 +488,9 @@ fn open_file_for_action (
                                             pages_bar.set_fraction(0.0);
                                             pages_bar.set_inverted(true);
 
+                                            restore_pages_info(&db_manager, &pages_info, &pathname);
+                                            sync_page_direction_action_state(&app, &pages_info);
+                                            
                                             let db_lock = db_manager.lock().unwrap();
                                             if let Some(last_page_index) = (*db_lock).get_last_page_index(&pathname) {
                                               drop(db_lock);
@@ -489,11 +498,10 @@ fn open_file_for_action (
                                             } else {
                                               drop(db_lock);
                                             };
-
                                             
                                             drawing_area_ref.queue_draw();
 
-                                            update_open_file_history_menu(&open_file_history_menu, &db_manager, &pathname);
+                                            update_open_file_history_menu(&open_file_history_menu, &db_manager, &pathname, &pages_info);
 
                                             return glib::ControlFlow::Break;
                                         },
@@ -528,7 +536,7 @@ fn open_file_for_action (
                         }
                     });
 
-                    glib::spawn_future_local(glib::clone!(#[weak] window, #[weak] image_container_list, #[strong] settings, #[weak] drawing_area_ref, #[strong] pages_info, #[weak] pages_bar, #[weak] spinner, #[weak] db_manager, #[weak] open_file_history_menu, async move {
+                    glib::spawn_future_local(glib::clone!(#[weak] app, #[weak] window, #[weak] image_container_list, #[strong] settings, #[weak] drawing_area_ref, #[strong] pages_info, #[weak] pages_bar, #[weak] spinner, #[weak] db_manager, #[weak] open_file_history_menu, async move {
 
                         let _source_id = glib::idle_add_local(glib::clone!(#[strong] image_container_list, #[strong] settings, #[strong] drawing_area_ref, #[strong] pages_bar, move || {
                             match rx.try_recv() {
@@ -552,17 +560,20 @@ fn open_file_for_action (
                                             // pages_bar.show();
 
 
+                                            restore_pages_info(&db_manager, &pages_info, &pathname);
+                                            sync_page_direction_action_state(&app, &pages_info);
+                                            
                                             let db_lock = db_manager.lock().unwrap();
                                             if let Some(last_page_index) = (*db_lock).get_last_page_index(&pathname) {
-                                              drop(db_lock);
-                                              set_page(last_page_index as usize, &settings, &drawing_area_ref, &image_container_list, &pages_info, &db_manager);  
+                                                drop(db_lock);
+                                                set_page(last_page_index as usize, &settings, &drawing_area_ref, &image_container_list, &pages_info, &db_manager);  
                                             } else {
-                                              drop(db_lock);
+                                                drop(db_lock);
                                             };
 
-                                            
+
                                             drawing_area_ref.queue_draw();
-                                            update_open_file_history_menu(&open_file_history_menu, &db_manager, &pathname);
+                                            update_open_file_history_menu(&open_file_history_menu, &db_manager, &pathname, &pages_info);
 
                                             return glib::ControlFlow::Break;
                                         },
@@ -614,6 +625,7 @@ fn open_file_for_action (
 }
 
 fn open_file_action_with_dialog(
+    app: &gtk::Application,
     window: &gtk::ApplicationWindow,
     image_container_list: &Arc<Mutex<Vec<ImageContainer>>>,
     drawing_area_ref: &DrawingArea,
@@ -642,13 +654,13 @@ fn open_file_action_with_dialog(
     dialog.add_filter(&file_filter);
 
 
-    dialog.connect_response(glib::clone!(#[weak] window, #[strong] image_container_list, #[strong] pages_info, #[weak] drawing_area_ref, #[weak] pages_bar,  #[weak] spinner, #[strong] settings, #[weak] open_file_history_menu, #[weak] db_manager, move |file_dialog, response| {
+    dialog.connect_response(glib::clone!(#[weak] app, #[weak] window, #[strong] image_container_list, #[strong] pages_info, #[weak] drawing_area_ref, #[weak] pages_bar,  #[weak] spinner, #[strong] settings, #[weak] open_file_history_menu, #[weak] db_manager, move |file_dialog, response| {
         if response == gtk::ResponseType::Ok {
             let Some(file) = file_dialog.file() else { return };
             let Some(path) = file.path() else { return };
             if !path.is_file() { return; }
 
-            open_file_for_action(&window, &image_container_list, &drawing_area_ref, &pages_bar, &settings, &pages_info, &spinner, &open_file_history_menu, &db_manager, &file);
+            open_file_for_action(&app, &window, &image_container_list, &drawing_area_ref, &pages_bar, &settings, &pages_info, &spinner, &open_file_history_menu, &db_manager, &file);
 
         }
         file_dialog.close();
@@ -669,10 +681,12 @@ fn create_action_entry_for_menu(
     open_file_history_menu: &Arc<Mutex<gio::Menu>>,
     db_manager: &Arc<Mutex<file_history::DbManager>>
 ) -> Vec<gio::ActionEntry<gtk::Application>> {
+    
     let open_file_action_entry: gio::ActionEntry<gtk::Application> = gio::ActionEntry::builder("file_open")
         .activate(glib::clone!(#[weak] window, #[strong] image_container_list,
-            #[strong] pages_info, #[strong] settings, #[strong] drawing_area_ref, #[weak] pages_bar, #[weak] spinner, #[weak] open_file_history_menu, #[weak] db_manager, move |_app: &gtk::Application, _action: &gio::SimpleAction, _user_data: Option<&glib::Variant>| {
-                open_file_action_with_dialog(&window,
+            #[strong] pages_info, #[strong] settings, #[strong] drawing_area_ref, #[weak] pages_bar, #[weak] spinner, #[weak] open_file_history_menu, #[weak] db_manager, move |app: &gtk::Application, _action: &gio::SimpleAction, _user_data: Option<&glib::Variant>| {
+                open_file_action_with_dialog(app,
+                                 &window,
                                  &image_container_list,
                                  &drawing_area_ref,
                                  &pages_bar,
@@ -690,7 +704,8 @@ fn create_action_entry_for_menu(
                                #[strong] pages_info, #[strong] settings, #[strong] drawing_area_ref, #[weak] pages_bar, #[weak] spinner, #[weak] open_file_history_menu, #[weak] db_manager, move |_app: &gtk::Application, _action: &gio::SimpleAction, _user_data: Option<&glib::Variant>| {
                                    let path_str = _user_data.expect("failed get userdata in open_file_from_history_action_entry").get::<String>().expect("failed get variant in open_file_from_history_action_entry");
                                    let file = gio::File::for_path(path_str);
-                                   open_file_for_action(&window,
+                                   open_file_for_action(_app,
+                                                        &window,
                                                         &image_container_list,
                                                         &drawing_area_ref,
                                                         &pages_bar,
@@ -707,10 +722,33 @@ fn create_action_entry_for_menu(
     let quit_action_entry: gio::ActionEntry<gtk::Application> = gio::ActionEntry::builder("quit")
         .activate(glib::clone!(#[weak] window, move |app: &gtk::Application, action: &gio::SimpleAction, user_data: Option<&glib::Variant>| {
             app.quit();
-    })).build();
+        })).build();
+
+    let view_action_entry: gio::ActionEntry<gtk::Application> = gio::ActionEntry::builder("page-direction")
+        .state(PageDirection::RightToLeft.as_str().to_variant())
+        .parameter_type(Some(&String::static_variant_type()))
+        .change_state(glib::clone!(#[strong] pages_info, #[weak] drawing_area_ref, #[weak] db_manager, move |_app: &gtk::Application, action: &gio::SimpleAction, _user_data: Option<&glib::Variant>| {
+            let Some(user_data) = _user_data else {
+                return;
+            };
+
+            let Some(s) = user_data.get::<String>() else {
+                return;
+            };
+
+            let Ok(page_direction) = PageDirection::from_str(&s) else {
+                return;
+            };
+
+            let loaded_filename = pages_info.loaded_filename.lock().unwrap().clone();
+            change_page_direction(&db_manager, &pages_info, page_direction, loaded_filename.as_deref());
+            action.set_state(&page_direction.as_str().to_variant());
+            drawing_area_ref.queue_draw();
+            
+        })).build();
 
     let result: Vec<gio::ActionEntry<gtk::Application>> =
-        vec![open_file_action_entry, open_file_from_history_action_entry, quit_action_entry];
+        vec![open_file_action_entry, open_file_from_history_action_entry, quit_action_entry, view_action_entry];
     result
 }
 
@@ -969,6 +1007,43 @@ fn fullscreen(
     }
 }
 
+fn change_page_direction(db_manager: &Arc<Mutex<file_history::DbManager>>, pages_info: &Arc<PagesInfo>, page_direction: PageDirection, file_path: Option<&str>) {
+    *pages_info.page_direction.lock().unwrap() = match page_direction {
+        PageDirection::RightToLeft => PageDirection::RightToLeft,
+        PageDirection::LeftToRight => PageDirection::LeftToRight,
+    };
+
+    if file_path.is_some() {
+        let db = db_manager.lock().unwrap();
+        db.update_page_direction(file_path.unwrap(), page_direction);
+    }
+}
+
+fn sync_page_direction_action_state(app: &gtk::Application, pages_info: &Arc<PagesInfo>) {
+    let page_direction = *pages_info.page_direction.lock().unwrap();
+    let Some(action) = app.lookup_action("page-direction") else {
+        return;
+    };
+    let Ok(action) = action.downcast::<gio::SimpleAction>() else {
+        return;
+    };
+
+    action.set_state(&page_direction.as_str().to_variant());
+}
+
+fn restore_pages_info(db_manager: &Arc<Mutex<file_history::DbManager>>, pages_info: &Arc<PagesInfo>, file_path: &str) {
+    let db = db_manager.lock().unwrap();
+    let pages_from_db = db.get_pages_info(file_path);
+    if pages_from_db.is_some() {
+        let (last_page_index, page_direction) = pages_from_db.unwrap();
+        *pages_info.current_page_index.lock().unwrap() = last_page_index as usize;
+        *pages_info.page_direction.lock().unwrap() = page_direction;
+    } else {
+        *pages_info.current_page_index.lock().unwrap() = 0usize;
+        *pages_info.page_direction.lock().unwrap() = PageDirection::default();
+    }
+}
+
 fn set_page(
     page_index: usize,
     settings: &Settings,
@@ -976,6 +1051,7 @@ fn set_page(
     image_container_list: &Arc<Mutex<Vec<ImageContainer>>>,
     pages_info: &Arc<PagesInfo>,
     db_manager: &Arc<Mutex<file_history::DbManager>>) {
+    
     let max_len = (*image_container_list.lock().unwrap()).len();
     if page_index > max_len {
         return;
@@ -993,8 +1069,6 @@ fn set_page(
     } else {
         scale_page_for_single(&image_container_list, page_index, width, height);
     }
-
-    // drawing_area.queue_draw();
 }
 
 fn get_move_page_number(is_left_key: bool, pages_info: &Arc<PagesInfo>) -> i64 {
@@ -1189,7 +1263,7 @@ fn init(&self, app: &Application, width: i32, height: i32) -> Result<()> {
             }
 
             if state == gdk::ModifierType::CONTROL_MASK && keyval == gdk::Key::o {
-                open_file_action_with_dialog(&window, &image_container_list, &drawing_area, &pages_bar, &settings, &pages_info, &spinner, &open_file_history_menu_arc_ref, &db_manager_arc_ref);
+                open_file_action_with_dialog(&app, &window, &image_container_list, &drawing_area, &pages_bar, &settings, &pages_info, &spinner, &open_file_history_menu_arc_ref, &db_manager_arc_ref);
                 return Propagation::Stop;
             }
 

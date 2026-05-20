@@ -1,3 +1,4 @@
+mod types;
 mod file_history;
 mod image_container;
 mod image_loader;

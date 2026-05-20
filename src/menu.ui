@@ -18,6 +18,23 @@
       </section>
     </submenu>
     <submenu>
+      <attribute name="label" translatable="yes">View</attribute>
+      <section>
+        <item>
+          <attribute name="label">Right to Left</attribute>
+          <attribute name="action">app.page-direction</attribute>
+          <attribute name="target">rtl</attribute>
+          <attribute name="role">radio</attribute>
+        </item>
+        <item>
+          <attribute name="label">Left to Right</attribute>
+          <attribute name="action">app.page-direction</attribute>
+          <attribute name="target">ltr</attribute>
+          <attribute name="role">radio</attribute>
+        </item>
+      </section>
+    </submenu>
+    <submenu>
       <attribute name="label" translatable="yes">Help</attribute>
       <section>
         <item>
