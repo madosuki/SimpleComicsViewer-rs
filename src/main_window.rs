@@ -557,8 +557,6 @@ fn open_file_for_action (
                                             
                                             pages_bar.set_fraction(0.0);
                                             pages_bar.set_inverted(true);
-                                            // pages_bar.show();
-
 
                                             restore_pages_info(&db_manager, &pages_info, &pathname);
                                             sync_page_direction_action_state(&app, &pages_info);
