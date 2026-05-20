@@ -25,9 +25,48 @@ impl DbManager {
         DbManager { conn: conn }
     }
 
+    fn get_open_file_history_columns(&self) -> Vec<String> {
+        let mut stmt = self.conn.prepare("PRAGMA table_info(open_file_history)").unwrap();
+        let mut rows = stmt.query([]).unwrap();
+        let mut columns = Vec::new();
+
+        while let Some(row) = rows.next().unwrap() {
+            columns.push(row.get(1).unwrap());
+        }
+
+        columns
+    }
+
+    fn has_open_file_history_column(&self, column_name: &str) -> bool {
+        self.get_open_file_history_columns()
+            .iter()
+            .any(|name| name == column_name)
+    }
+
+    fn migrate(&self) {
+        let user_version: i64 = self.conn.query_row("PRAGMA user_version", [], |row| row.get(0)).unwrap();
+
+        if user_version < 2 {
+            if self.has_open_file_history_column("path") && !self.has_open_file_history_column("location_path") {
+                self.conn.execute_batch("alter table open_file_history rename column path to location_path;").unwrap();
+            }
+
+            if !self.has_open_file_history_column("last_show_page_index") {
+                self.conn.execute_batch("alter table open_file_history add column last_show_page_index integer not null default 0;").unwrap();
+            }
+
+            if !self.has_open_file_history_column("page_direction") {
+                self.conn.execute_batch("alter table open_file_history add column page_direction integer not null default 0;").unwrap();
+            }
+
+            self.conn.execute("PRAGMA user_version = 2", ()).unwrap();
+        }
+    }
+
     pub fn init(&self) {
-        self.conn.execute("create table if not exists open_file_history (id integer primary key autoincrement, location_path text not null unique, unixtime integer not null, last_show_page_index integer not null, page_direction integer not null)",
+        self.conn.execute("create table if not exists open_file_history (id integer primary key autoincrement, location_path text not null unique, unixtime integer not null, last_show_page_index integer not null, page_direction integer not null default 0)",
                           ()).unwrap();
+        self.migrate();
     }
 
     pub fn add_history(&self, file_path: String, unixtime: i64, page_direction: PageDirection) {
@@ -135,5 +174,52 @@ impl DbManager {
         }
         
         file_history_list
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn make_test_db_path(test_name: &str) -> String {
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        std::env::temp_dir()
+            .join(format!("simple_comics_viewer_{test_name}_{nanos}.db"))
+            .to_string_lossy()
+            .to_string()
+    }
+
+    #[test]
+    fn init_migrates_old_history_schema() {
+        let db_path = make_test_db_path("old_history_schema");
+
+        {
+            let conn = Connection::open(&db_path).unwrap();
+            conn.execute_batch(
+                "create table open_file_history (
+                    id integer primary key autoincrement,
+                    path text not null unique,
+                    unixtime integer not null,
+                    page_direction integer not null default 0
+                );
+                insert into open_file_history (path, unixtime, page_direction)
+                values ('/tmp/sample.cbz', 10, 0);
+                PRAGMA user_version = 1;",
+            )
+            .unwrap();
+        }
+
+        let db = DbManager::new(&db_path);
+        db.init();
+
+        assert!(db.has_open_file_history_column("location_path"));
+        assert!(db.has_open_file_history_column("last_show_page_index"));
+        assert_eq!(db.get_history()[0].location_path, "/tmp/sample.cbz");
+        assert_eq!(db.get_last_page_index("/tmp/sample.cbz"), Some(0));
+
+        std::fs::remove_file(db_path).unwrap();
     }
 }
