@@ -553,11 +553,7 @@ fn open_file_for_action (
                                     pages_bar.set_fraction(0.0);
                                     pages_bar.set_inverted(true);
 
-                                    restore_pages_info(&db_manager, &pages_info, &pathname);
-                                    sync_page_direction_action_state(&app, &pages_info);
-
-                                    let restored_page_index = *pages_info.current_page_index.lock().unwrap();
-                                    set_page(restored_page_index, &settings, &drawing_area_ref, &image_container_list, &pages_info, &db_manager);  
+                                    set_page(0, &settings, &drawing_area_ref, &image_container_list, &pages_info, &db_manager);
                                             
                                     drawing_area_ref.queue_draw();
                                     update_open_file_history_menu(&open_file_history_menu, &db_manager, &pathname, &pages_info);
