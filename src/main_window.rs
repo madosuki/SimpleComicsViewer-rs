@@ -328,7 +328,7 @@ fn open_and_set_image_to_image_container_from_file(
     }
 }
 
-async fn read_dir_and_set_images(
+fn read_dir_and_set_images(
     file: &gio::File,
     image_container_list: &Arc<Mutex<Vec<ImageContainer>>>,
 ) -> bool {
@@ -454,133 +454,135 @@ fn open_file_for_action (
         utils::FileType::ZIP => {
             let pathname = get_file_path_from_file_desc(&file).unwrap();
             let pathname_cloned = pathname.clone();
-                    let (tx, rx) = std::sync::mpsc::sync_channel::<ResultLoadFilesWithMultiThread>(1);
-                    let image_container_list_arc_cloned = Arc::clone(&image_container_list);
+            let (tx, rx) = std::sync::mpsc::sync_channel::<ResultLoadFilesWithMultiThread>(1);
+            let image_container_list_arc_cloned = Arc::clone(&image_container_list);
 
-                    spinner.show();
-                    spinner.start();
+            spinner.show();
+            spinner.start();
 
-                    let _ = std::thread::spawn(move || {
-                        let r = open_and_set_image_to_image_container_from_zip(&pathname_cloned, &image_container_list_arc_cloned);
-                        if !r {
-                            tx.send(ResultLoadFilesWithMultiThread::Failed).unwrap();
-                        } else {
-                            tx.send(ResultLoadFilesWithMultiThread::Success).unwrap();
-                        }
-                    });
+            let _ = std::thread::spawn(move || {
+                let r = open_and_set_image_to_image_container_from_zip(&pathname_cloned, &image_container_list_arc_cloned);
+                if !r {
+                    tx.send(ResultLoadFilesWithMultiThread::Failed).unwrap();
+                } else {
+                    tx.send(ResultLoadFilesWithMultiThread::Success).unwrap();
+                }
+            });
                     
-                    glib::spawn_future_local(glib::clone!(#[weak] app, #[weak] window, #[strong] image_container_list, #[strong] settings, #[weak] drawing_area_ref, #[strong] pages_info, #[weak] pages_bar, #[weak] spinner, #[weak] db_manager,  #[weak] open_file_history_menu, async move {
-                        update_window_title(&window, "Now Loading...");
+            glib::spawn_future_local(glib::clone!(#[weak] app, #[weak] window, #[strong] image_container_list, #[strong] settings, #[weak] drawing_area_ref, #[strong] pages_info, #[weak] pages_bar, #[weak] spinner, #[weak] db_manager,  #[weak] open_file_history_menu, async move {
+                update_window_title(&window, "Now Loading...");
 
-                        let _source_id = glib::idle_add_local(glib::clone!(#[strong] image_container_list, #[strong] settings, #[strong] drawing_area_ref, #[strong] pages_bar, move || {
-                            match rx.try_recv() {
-                                Ok(v) => {
-                                    match v {
-                                        ResultLoadFilesWithMultiThread::Success => {
-                                            allocate_drawing_area_and_scale_init_from_image_container(&image_container_list, &settings, 0, &drawing_area_ref);
-                                            *pages_info.loaded_filename.lock().unwrap() = Some(pathname.clone());
-                                            update_window_title(&window, &pathname);
+                let _source_id = glib::idle_add_local(glib::clone!(#[strong] image_container_list, #[strong] settings, #[strong] drawing_area_ref, #[strong] pages_bar, move || {
+                    match rx.try_recv() {
+                        Ok(v) => {
+                            match v {
+                                ResultLoadFilesWithMultiThread::Success => {
+                                    allocate_drawing_area_and_scale_init_from_image_container(&image_container_list, &settings, 0, &drawing_area_ref);
+                                    *pages_info.loaded_filename.lock().unwrap() = Some(pathname.clone());
+                                    update_window_title(&window, &pathname);
                                             
 
-                                            spinner.stop();
-                                            spinner.hide();
+                                    spinner.stop();
+                                    spinner.hide();
 
-                                            pages_bar.set_fraction(0.0);
-                                            pages_bar.set_inverted(true);
+                                    pages_bar.set_fraction(0.0);
+                                    pages_bar.set_inverted(true);
 
-                                            restore_pages_info(&db_manager, &pages_info, &pathname);
-                                            sync_page_direction_action_state(&app, &pages_info);
+                                    restore_pages_info(&db_manager, &pages_info, &pathname);
+                                    sync_page_direction_action_state(&app, &pages_info);
 
-                                            let restored_page_index = *pages_info.current_page_index.lock().unwrap();
-                                            set_page(restored_page_index, &settings, &drawing_area_ref, &image_container_list, &pages_info, &db_manager);  
+                                    let restored_page_index = *pages_info.current_page_index.lock().unwrap();
+                                    set_page(restored_page_index, &settings, &drawing_area_ref, &image_container_list, &pages_info, &db_manager);  
                                             
-                                            drawing_area_ref.queue_draw();
+                                    drawing_area_ref.queue_draw();
 
-                                            update_open_file_history_menu(&open_file_history_menu, &db_manager, &pathname, &pages_info);
+                                    update_open_file_history_menu(&open_file_history_menu, &db_manager, &pathname, &pages_info);
 
-                                            return glib::ControlFlow::Break;
-                                        },
-                                        ResultLoadFilesWithMultiThread::Failed => {
-                                            spinner.stop();
-                                            spinner.hide();
-
-                                            update_window_title(&window, "Failed");
-                                            return glib::ControlFlow::Break;
-                                        }
-                                    }
+                                    return glib::ControlFlow::Break;
                                 },
-                                Err(_) => {
-                                    return glib::ControlFlow::Continue;
-                                }
-                            }}));
-                    }));
-                },
-                utils::FileType::PDF => {
-                    let pathname = get_file_path_from_file_desc(&file).unwrap();
-                    let pathname_cloned = pathname.clone();
-                    update_window_title(&window, "Now Loading...");
-                    spinner.show();
-                    spinner.start();
-                    let (tx, rx) = std::sync::mpsc::sync_channel::<ResultLoadFilesWithMultiThread>(1);
-                    let pdf_pixmaps_arc: Arc<Mutex<Vec<PdfPixmap>>> = Arc::new(Mutex::new(vec!()));
-                    let pdf_pixmaps_arc_clone = Arc::clone(&pdf_pixmaps_arc);
-                    let _ = std::thread::spawn(move || {
-                        match pdf_loader::load_pdf(&pathname_cloned, &pdf_pixmaps_arc_clone) {
-                            Ok(_) => tx.send(ResultLoadFilesWithMultiThread::Success).unwrap(),
-                            Err(_) => tx.send(ResultLoadFilesWithMultiThread::Failed).unwrap()
-                        }
-                    });
+                                ResultLoadFilesWithMultiThread::Failed => {
+                                    spinner.stop();
+                                    spinner.hide();
 
-                    glib::spawn_future_local(glib::clone!(#[weak] app, #[weak] window, #[weak] image_container_list, #[strong] settings, #[weak] drawing_area_ref, #[strong] pages_info, #[weak] pages_bar, #[weak] spinner, #[weak] db_manager, #[weak] open_file_history_menu, async move {
-
-                        let _source_id = glib::idle_add_local(glib::clone!(#[strong] image_container_list, #[strong] settings, #[strong] drawing_area_ref, #[strong] pages_bar, move || {
-                            match rx.try_recv() {
-                                Ok(v) => {
-                                    match v {
-                                        ResultLoadFilesWithMultiThread::Success => {
-                                            set_image_to_image_container_from_pdf_pixmaps(&image_container_list, &pdf_pixmaps_arc);
-                                            allocate_drawing_area_and_scale_init_from_image_container(&image_container_list,
-                                                                                                      &settings,
-                                                                                                      0,
-                                                                                                      &drawing_area_ref);
-                                            *pages_info.loaded_filename.lock().unwrap() = Some(pathname.clone());
-                                            update_window_title(&window, &pathname);
-
-
-                                            spinner.stop();
-                                            spinner.hide();
-                                            
-                                            pages_bar.set_fraction(0.0);
-                                            pages_bar.set_inverted(true);
-
-                                            restore_pages_info(&db_manager, &pages_info, &pathname);
-                                            sync_page_direction_action_state(&app, &pages_info);
-
-                                            let restored_page_index = *pages_info.current_page_index.lock().unwrap();
-                                            set_page(restored_page_index, &settings, &drawing_area_ref, &image_container_list, &pages_info, &db_manager);  
-                                            
-                                            drawing_area_ref.queue_draw();
-                                            update_open_file_history_menu(&open_file_history_menu, &db_manager, &pathname, &pages_info);
-
-                                            return glib::ControlFlow::Break;
-                                        },
-                                        ResultLoadFilesWithMultiThread::Failed => {
-                                            spinner.stop();
-                                            spinner.hide();
-
-                                            update_window_title(&window, "Failed");
-                                            return glib::ControlFlow::Break;
-                                        }
-                                    }
-                                },
-                                Err(_) => {
-                                    return glib::ControlFlow::Continue;
+                                    update_window_title(&window, "Failed");
+                                    return glib::ControlFlow::Break;
                                 }
                             }
-                        }));
-                    }));                    
-                },
+                        },
+                        Err(_) => {
+                            return glib::ControlFlow::Continue;
+                        }
+                    }}));
+            }));
+        },
+        utils::FileType::PDF => {
+            let pathname = get_file_path_from_file_desc(&file).unwrap();
+            let pathname_cloned = pathname.clone();
+            update_window_title(&window, "Now Loading...");
+            spinner.show();
+            spinner.start();
+            let (tx, rx) = std::sync::mpsc::sync_channel::<ResultLoadFilesWithMultiThread>(1);
+            let pdf_pixmaps_arc: Arc<Mutex<Vec<PdfPixmap>>> = Arc::new(Mutex::new(vec!()));
+            let pdf_pixmaps_arc_clone = Arc::clone(&pdf_pixmaps_arc);
+            let _ = std::thread::spawn(move || {
+                match pdf_loader::load_pdf(&pathname_cloned, &pdf_pixmaps_arc_clone) {
+                    Ok(_) => tx.send(ResultLoadFilesWithMultiThread::Success).unwrap(),
+                    Err(_) => tx.send(ResultLoadFilesWithMultiThread::Failed).unwrap()
+                }
+            });
+
+            glib::spawn_future_local(glib::clone!(#[weak] app, #[weak] window, #[weak] image_container_list, #[strong] settings, #[weak] drawing_area_ref, #[strong] pages_info, #[weak] pages_bar, #[weak] spinner, #[weak] db_manager, #[weak] open_file_history_menu, async move {
+
+                let _source_id = glib::idle_add_local(glib::clone!(#[strong] image_container_list, #[strong] settings, #[strong] drawing_area_ref, #[strong] pages_bar, move || {
+                    match rx.try_recv() {
+                        Ok(v) => {
+                            match v {
+                                ResultLoadFilesWithMultiThread::Success => {
+                                    set_image_to_image_container_from_pdf_pixmaps(&image_container_list, &pdf_pixmaps_arc);
+                                    allocate_drawing_area_and_scale_init_from_image_container(&image_container_list,
+                                                                                              &settings,
+                                                                                              0,
+                                                                                              &drawing_area_ref);
+                                    *pages_info.loaded_filename.lock().unwrap() = Some(pathname.clone());
+                                    update_window_title(&window, &pathname);
+
+
+                                    spinner.stop();
+                                    spinner.hide();
+                                            
+                                    pages_bar.set_fraction(0.0);
+                                    pages_bar.set_inverted(true);
+
+                                    restore_pages_info(&db_manager, &pages_info, &pathname);
+                                    sync_page_direction_action_state(&app, &pages_info);
+
+                                    let restored_page_index = *pages_info.current_page_index.lock().unwrap();
+                                    set_page(restored_page_index, &settings, &drawing_area_ref, &image_container_list, &pages_info, &db_manager);  
+                                            
+                                    drawing_area_ref.queue_draw();
+                                    update_open_file_history_menu(&open_file_history_menu, &db_manager, &pathname, &pages_info);
+
+                                    return glib::ControlFlow::Break;
+                                },
+                                ResultLoadFilesWithMultiThread::Failed => {
+                                    spinner.stop();
+                                    spinner.hide();
+
+                                    update_window_title(&window, "Failed");
+                                    return glib::ControlFlow::Break;
+                                }
+                            }
+                        },
+                        Err(_) => {
+                            return glib::ControlFlow::Continue;
+                        }
+                    }
+                }));
+            }));                    
+        },
         _ => {
+            let pathname = get_file_path_from_file_desc(&file).unwrap();
+            let pathname_cloned = pathname.clone();
             let Some(path) = file.path() else { return };
             let Some(dir_path) = path.parent() else {
                 eprintln!("Failed get parent directory from path");
@@ -591,20 +593,72 @@ fn open_file_for_action (
                 eprintln!("Failed get dir path string");
                 return;
             };
-            update_window_title(&window, dir_path_str);
-            *pages_info.loaded_dirname.lock().unwrap() = Some(dir_path_str.to_owned());
+            let dir_path_string = dir_path_str.to_string();
 
-            glib::spawn_future_local(glib::clone!(#[weak] window, #[strong] image_container_list, #[strong] settings, #[weak] drawing_area_ref, #[strong] pages_info, #[strong] file, async move {
-                update_window_title(&window, "Now Loading...");
+            update_window_title(&window, "Now Loading...");
+            spinner.show();
+            spinner.start();
 
-                let r = read_dir_and_set_images(&file, &image_container_list).await;
-                if !r {
-                    return;
+            // update_window_title(&window, dir_path_str);
+            // *pages_info.loaded_dirname.lock().unwrap() = Some(dir_path_str.to_owned());
+
+            let image_container_list_arc_cloned = Arc::clone(&image_container_list);
+            let file_cloned = file.clone();
+            let (tx, rx) = std::sync::mpsc::sync_channel::<ResultLoadFilesWithMultiThread>(1);
+            let _ = std::thread::spawn(move || {
+                if read_dir_and_set_images(&file_cloned, &image_container_list_arc_cloned) {
+                    tx.send(ResultLoadFilesWithMultiThread::Success).unwrap();
+                } else {
+                    tx.send(ResultLoadFilesWithMultiThread::Failed).unwrap();
                 }
-                    
-                glib::idle_add_local_once(glib::clone!(#[strong] image_container_list, #[strong] settings, #[weak] drawing_area_ref, move || {
-                    allocate_drawing_area_and_scale_init_from_image_container(&image_container_list, &settings, 0, &drawing_area_ref);
-                    drawing_area_ref.queue_draw();
+            });
+
+
+
+            glib::spawn_future_local(glib::clone!(#[weak] app, #[weak] window, #[weak] image_container_list, #[strong] settings, #[weak] drawing_area_ref, #[strong] pages_info, #[weak] pages_bar, #[weak] spinner, #[weak] db_manager, #[weak] open_file_history_menu, async move {
+                
+                let _source_id = glib::idle_add_local(glib::clone!(#[strong] image_container_list, #[strong] settings, #[strong] drawing_area_ref, #[strong] pages_bar, move || {
+                    match rx.try_recv() {
+                        Ok(v) => {
+                            match v {
+                                ResultLoadFilesWithMultiThread::Success => {
+                                    allocate_drawing_area_and_scale_init_from_image_container(&image_container_list,
+                                                                                              &settings,
+                                                                                              0,
+                                                                                              &drawing_area_ref);
+                                    *pages_info.loaded_dirname.lock().unwrap() = Some(dir_path_string.to_owned());
+                                    update_window_title(&window, &pathname);
+
+                                    spinner.stop();
+                                    spinner.hide();
+                                            
+                                    pages_bar.set_fraction(0.0);
+                                    pages_bar.set_inverted(true);
+
+                                    restore_pages_info(&db_manager, &pages_info, &pathname);
+                                    sync_page_direction_action_state(&app, &pages_info);
+
+                                    let restored_page_index = *pages_info.current_page_index.lock().unwrap();
+                                    set_page(restored_page_index, &settings, &drawing_area_ref, &image_container_list, &pages_info, &db_manager);  
+                                            
+                                    drawing_area_ref.queue_draw();
+                                    update_open_file_history_menu(&open_file_history_menu, &db_manager, &pathname, &pages_info);
+
+                                    return glib::ControlFlow::Break;
+                                },
+                                ResultLoadFilesWithMultiThread::Failed => {
+                                    spinner.stop();
+                                    spinner.hide();
+
+                                    update_window_title(&window, "Failed");
+                                    return glib::ControlFlow::Break;
+                                }
+                            }
+                        },
+                        Err(_) => {
+                            return glib::ControlFlow::Continue;
+                        }
+                    }
                 }));
             }));
         }
