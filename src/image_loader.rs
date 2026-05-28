@@ -4,11 +4,12 @@ use libarchive_extractor_rs;
 use libarchive_extractor_rs::{ArchiveExt, DecompressedData};
 
 use crate::utils;
+use crate::natural_sort::{self, compare_by_natural};
 
 pub fn load_from_compressed_file_to_memory(pathname: &str) -> Result<Vec<DecompressedData>> {
     let archive = libarchive_extractor_rs::Archive::new()?;
     
-    let result: Vec<DecompressedData> = archive
+    let mut tmp: Vec<DecompressedData> = archive
         .extract_to_memory(pathname)?
         .into_iter()
         .flat_map(|v| match utils::detect_file_type_from_bytes(&v.value) {
@@ -18,5 +19,11 @@ pub fn load_from_compressed_file_to_memory(pathname: &str) -> Result<Vec<Decompr
         })
         .collect();
 
-    Ok(result)
+    tmp.sort_by(|a, b| {
+        let a_name = a.file_info.file_name.clone();
+        let b_name = b.file_info.file_name.clone();
+        return compare_by_natural(&a_name, &b_name);
+    });
+
+    Ok(tmp)
 }
