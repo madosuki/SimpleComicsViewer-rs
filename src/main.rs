@@ -5,6 +5,7 @@ mod image_loader;
 mod pdf_loader;
 mod main_window;
 mod utils;
+mod natural_sort;
 
 use gtk4 as gtk;
 use gtk::gio::prelude::{ApplicationExt, ApplicationExtManual};

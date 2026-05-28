@@ -31,6 +31,7 @@ use crate::pdf_loader::PdfPixmap;
 use crate::{image_container, pdf_loader};
 use crate::image_loader;
 use crate::utils;
+use crate::natural_sort::{self, compare_by_natural};
 
 use types::PageDirection;
 use image_container::{ImageContainer, ImageContainerEx};
@@ -342,7 +343,12 @@ fn read_dir_and_set_images(
 
     if let Ok(tmp_entries) = dir_path.read_dir() {
         let mut entries: Vec<DirEntry> = tmp_entries.filter_map(Result::ok).collect();
-        entries.sort_by_key(|x| x.file_name().to_string_lossy().into_owned());
+        // entries.sort_by_key(|x| x.file_name().to_string_lossy().into_owned());
+        entries.sort_by(|a, b| {
+            let a_str = a.file_name().to_str().unwrap().to_owned();
+            let b_str = a.file_name().to_str().unwrap().to_owned();
+            compare_by_natural(&a_str, &b_str)
+        });
         for entry in entries {
             match entry.file_type() {
                 Ok(v) => {
