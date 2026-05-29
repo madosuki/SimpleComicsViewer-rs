@@ -1305,6 +1305,10 @@ fn init(&self, app: &Application, width: i32, height: i32) -> Result<()> {
                 return Propagation::Stop;
             }
 
+            if state == gdk::ModifierType::ALT_MASK && keyval == gdk::Key::F4 {
+                app.quit();
+            }
+
             if state == gdk::ModifierType::CONTROL_MASK && keyval == gdk::Key::o {
                 open_file_action_with_dialog(&app, &window, &image_container_list, &drawing_area, &pages_bar, &settings, &pages_info, &spinner, &open_file_history_menu_arc_ref, &db_manager_arc_ref);
                 return Propagation::Stop;
