@@ -1101,7 +1101,6 @@ fn draw_right_to_left_when_dual(
     };
 
     if left_index >= image_container_list.len() {
-        // FIXME: refelect page dirction. current is only support right to left.
         let margin =
             calc_margin_for_single(&right, area.allocated_width(), area.allocated_height());
         let top_margin = f64::from(margin.top_margin);
@@ -1171,6 +1170,7 @@ fn draw_left_to_right_when_dual(
     right_index: usize,
     left_index: usize,
 ) {
+    // initial val left: 0, right: 1
     let half_area_width = area.allocated_width() / 2;
 
     let Some(left) = image_container_list[left_index].get_modified_pixbuf_data() else {
@@ -1181,16 +1181,15 @@ fn draw_left_to_right_when_dual(
     } else {
         cairo::Format::Rgb24
     };
-    let pix_w = left.width();
-    let pix_h = left.height();
-    let Ok(surface_for_left) = cairo::ImageSurface::create(left_format, pix_w, pix_h) else {
+    let left_pix_w = left.width();
+    let left_pix_h = left.height();
+    let Ok(surface_for_left) = cairo::ImageSurface::create(left_format, left_pix_w, left_pix_h) else {
         return;
     };
 
     let left_pos = 0.0;
 
     if right_index >= image_container_list.len() {
-        // FIXME: refelect page dirction. current is only support right to left.
         let margin = calc_margin_for_single(&left, area.allocated_width(), area.allocated_height());
         let top_margin = f64::from(margin.top_margin);
 
@@ -1212,35 +1211,40 @@ fn draw_left_to_right_when_dual(
         area.allocated_width(),
         area.allocated_height(),
     );
-    let left_margin = f64::from(margin.left_margin);
+    let left_margin_for_left = f64::from(margin.left_margin);
     let top_margin_for_left = f64::from(margin.top_margin_for_left);
     let top_margin_for_right = f64::from(margin.top_margin_for_right);
 
     let left_pic_width = left.width();
-    let final_left_margin = if left_pic_width > half_area_width || left_pic_width == half_area_width
+    let final_left_margin_for_left = if left_pic_width > half_area_width || left_pic_width == half_area_width
     {
         0.0
     } else {
-        left_margin
+        left_margin_for_left
     };
 
-    let right_margin = if left_pic_width > half_area_width {
-        final_left_margin + f64::from(left_pic_width)
+    let left_margin_for_right = if left_pic_width > half_area_width {
+        final_left_margin_for_left + f64::from(left_pic_width)
     } else {
-        left_margin + f64::from(left_pic_width)
+        left_margin_for_left + f64::from(left_pic_width)
     };
 
-    let _ = ctx.set_source_surface(&surface_for_left, right_margin, top_margin_for_right);
-    let _ = ctx.set_source_pixbuf(&right, right_margin, top_margin_for_right);
+    let _ = ctx.set_source_surface(&surface_for_left, final_left_margin_for_left, top_margin_for_left);
+    let _ = ctx.set_source_pixbuf(&left, final_left_margin_for_left, top_margin_for_left);
     let _ = ctx.paint();
 
-    let Ok(surface_for_left) =
-        cairo::ImageSurface::create(left_format, left.width(), left.height())
+    let right_format = if right.has_alpha() {
+        cairo::Format::ARgb32
+    } else {
+        cairo::Format::Rgb24
+    };
+    let Ok(surface_for_right) =
+        cairo::ImageSurface::create(right_format, right.width(), right.height())
     else {
         return;
     };
-    let _ = ctx.set_source_surface(&surface_for_left, final_left_margin, top_margin_for_left);
-    let _ = ctx.set_source_pixbuf(&left, final_left_margin, top_margin_for_left);
+    let _ = ctx.set_source_surface(&surface_for_right, left_margin_for_right, top_margin_for_right);
+    let _ = ctx.set_source_pixbuf(&right, left_margin_for_right, top_margin_for_right);
     let _ = ctx.paint();
 }
 
