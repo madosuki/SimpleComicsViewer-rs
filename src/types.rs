@@ -15,7 +15,7 @@ impl TryFrom<i64> for PageDirection {
         match val {
             0 => Ok(PageDirection::RightToLeft),
             1 => Ok(PageDirection::LeftToRight),
-            _ => Err(())
+            _ => Err(()),
         }
     }
 }
@@ -27,7 +27,7 @@ impl FromStr for PageDirection {
         match s {
             "rtl" => Ok(PageDirection::RightToLeft),
             "ltr" => Ok(PageDirection::LeftToRight),
-            _ => Err(())
+            _ => Err(()),
         }
     }
 }
@@ -36,7 +36,7 @@ impl PageDirection {
     pub fn as_str(self) -> &'static str {
         match self {
             Self::RightToLeft => "rtl",
-            Self::LeftToRight => "ltr"
+            Self::LeftToRight => "ltr",
         }
     }
 }

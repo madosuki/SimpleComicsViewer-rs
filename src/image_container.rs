@@ -2,8 +2,8 @@ use std::cell::RefCell;
 use std::fs::File;
 use std::io::Read;
 
-use gtk4 as gtk;
 use gtk::{gio, glib};
+use gtk4 as gtk;
 
 use gtk::prelude::{FileExt, PixbufLoaderExt};
 
@@ -92,13 +92,15 @@ impl ImageContainerEx for ImageContainer {
         let stride = pdf_pixmap.pixmap.stride() as i32;
         let is_alpha = n == 4; // mupdf pixmap n is only have alpha channel when 4.
         let bytes = glib::Bytes::from(samples);
-        let pixbuf_data = gtk::gdk_pixbuf::Pixbuf::from_bytes(&bytes,
-                                                              gtk::gdk_pixbuf::Colorspace::Rgb,
-                                                              is_alpha,
-                                                              8,
-                                                              w,
-                                                              h,
-                                                              stride);
+        let pixbuf_data = gtk::gdk_pixbuf::Pixbuf::from_bytes(
+            &bytes,
+            gtk::gdk_pixbuf::Colorspace::Rgb,
+            is_alpha,
+            8,
+            w,
+            h,
+            stride,
+        );
 
         let _ = self
             .modified_pixbuf_data
@@ -151,33 +153,32 @@ impl ImageContainerEx for ImageContainer {
         let tmp_target_height = target_height as f64;
 
         let aspect_ratio = calc_aspect_raito(width, height);
-        let mut result_height = 0;
-        let mut result_width = 0;
-
-        if is_dual_mode {
-            result_height = (tmp_target_width / aspect_ratio.for_width).ceil() as i32;
+        let (result_width, result_height) = if is_dual_mode {
+            let result_height = (tmp_target_width / aspect_ratio.for_width).ceil() as i32;
             if result_height > target_height {
-                result_height = target_height;
-                result_width = (tmp_target_height / aspect_ratio.for_height).ceil() as i32;
+                (
+                    (tmp_target_height / aspect_ratio.for_height).ceil() as i32,
+                    target_height,
+                )
             } else {
-                result_width = target_width;
+                (target_width, result_height)
             }
         } else {
             match picture_direction {
-                PictureDirectionType::Vertical => {
-                    result_height = target_height;
-                    result_width = (tmp_target_height / aspect_ratio.for_height).ceil() as i32;
-                }
-                PictureDirectionType::Horizontal => {
-                    result_width = target_width;
-                    result_height = (tmp_target_width / aspect_ratio.for_width).ceil() as i32;
-                }
-                PictureDirectionType::Square => {
-                    result_height = target_height;
-                    result_width = (tmp_target_height / aspect_ratio.for_height).ceil() as i32;
-                }
+                PictureDirectionType::Vertical => (
+                    (tmp_target_height / aspect_ratio.for_height).ceil() as i32,
+                    target_height,
+                ),
+                PictureDirectionType::Horizontal => (
+                    target_width,
+                    (tmp_target_width / aspect_ratio.for_width).ceil() as i32,
+                ),
+                PictureDirectionType::Square => (
+                    (tmp_target_height / aspect_ratio.for_height).ceil() as i32,
+                    target_height,
+                ),
             }
-        }
+        };
 
         let Some(scaled) = pixbuf_data.scale_simple(
             result_width,
@@ -192,6 +193,7 @@ impl ImageContainerEx for ImageContainer {
     }
 }
 
+#[allow(dead_code)]
 pub fn read_bytes_from_file_path(path_str: &str) -> Option<Vec<u8>> {
     let path = Some(std::path::Path::new(path_str)).unwrap();
     let mut f = File::open(path).unwrap();
@@ -223,7 +225,7 @@ pub fn create_pixbuf_from_bytes(bytes: &[u8]) -> Option<gtk::gdk_pixbuf::Pixbuf>
     Some(pixbuf_data)
 }
 
-
+#[allow(dead_code)]
 pub fn create_pixbuf_from_file_path(path_str: String) -> Option<gtk::gdk_pixbuf::Pixbuf> {
     let Some(buf) = read_bytes_from_file_path(&path_str) else {
         return None;

@@ -3,12 +3,12 @@ use anyhow::Result;
 use libarchive_extractor_rs;
 use libarchive_extractor_rs::{ArchiveExt, DecompressedData};
 
+use crate::natural_sort::compare_by_natural;
 use crate::utils;
-use crate::natural_sort::{self, compare_by_natural};
 
 pub fn load_from_compressed_file_to_memory(pathname: &str) -> Result<Vec<DecompressedData>> {
     let archive = libarchive_extractor_rs::Archive::new()?;
-    
+
     let mut tmp: Vec<DecompressedData> = archive
         .extract_to_memory(pathname)?
         .into_iter()

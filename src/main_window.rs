@@ -1,23 +1,18 @@
 use std::str::FromStr;
 
-use gtk4::glib::variant::{StaticVariantType, ToVariant};
-use gtk4::glib::VariantTy;
-use gtk4 as gtk;
 use gtk::gdk;
 use gtk::glib::object::Cast;
+use gtk4 as gtk;
+use gtk4::glib::VariantTy;
+use gtk4::glib::variant::{StaticVariantType, ToVariant};
 
 use gtk::glib::Propagation;
 use gtk::prelude::{
-    ActionMapExt, ActionMapExtManual, ApplicationExt, ApplicationWindowExt, BoxExt, DialogExt, DrawingAreaExt,
-    DrawingAreaExtManual, FileChooserExt, FileChooserExtManual, FileExt, GdkCairoContextExt,
-    GridExt, GtkApplicationExt, GtkWindowExt, MenuLinkIterExt, MenuModelExt, PixbufLoaderExt,
-    PopoverExt, SurfaceExt, WidgetExt,
+    ActionMapExt, ActionMapExtManual, ApplicationExt, ApplicationWindowExt, BoxExt, DialogExt,
+    DrawingAreaExt, DrawingAreaExtManual, FileChooserExt, FileExt, GdkCairoContextExt,
+    GtkApplicationExt, GtkWindowExt, WidgetExt,
 };
-use gtk::{
-    cairo, gio, glib, Application, ApplicationWindow, DrawingArea,
-    EventControllerKey,
-};
-
+use gtk::{Application, ApplicationWindow, DrawingArea, EventControllerKey, cairo, gio, glib};
 
 use anyhow::Result;
 
@@ -25,24 +20,23 @@ use std::fs::DirEntry;
 use std::sync::Arc;
 use std::sync::Mutex;
 
-use crate::types;
 use crate::file_history;
-use crate::pdf_loader::PdfPixmap;
-use crate::{image_container, pdf_loader};
 use crate::image_loader;
+use crate::natural_sort::compare_by_natural;
+use crate::pdf_loader::PdfPixmap;
+use crate::types;
 use crate::utils;
-use crate::natural_sort::{self, compare_by_natural};
+use crate::{image_container, pdf_loader};
 
-use types::PageDirection;
 use image_container::{ImageContainer, ImageContainerEx};
-
+use types::PageDirection;
 
 #[derive(Default)]
 struct PagesInfo {
     current_page_index: Arc<Mutex<usize>>,
     loaded_filename: Arc<Mutex<Option<String>>>,
     loaded_dirname: Arc<Mutex<Option<String>>>,
-    page_direction: Arc<Mutex<PageDirection>>
+    page_direction: Arc<Mutex<PageDirection>>,
 }
 
 #[derive(Default)]
@@ -60,7 +54,6 @@ struct Settings {
 // fn get_val_of_is_file_opend_app_status(app_status: &Arc<AppStatus>) -> bool {
 //     app_status.is_file_opend.lock().unwrap().clone()
 // }
-
 
 #[derive(Default)]
 struct MarginData {
@@ -202,22 +195,14 @@ fn scale_page_for_dual(
     }
 
     let next_index = current_page_index + 1;
-    
+
     let _image_container_list_len = image_container_list_ptr.len();
 
     let final_target_width = target_width / 2;
-    image_container_list_ptr[current_page_index].scale(
-        final_target_width,
-        target_height,
-        true,
-    );
+    image_container_list_ptr[current_page_index].scale(final_target_width, target_height, true);
 
     if next_index < _image_container_list_len {
-        image_container_list_ptr[next_index].scale(
-            final_target_width,
-            target_height,
-            true,
-        );
+        image_container_list_ptr[next_index].scale(final_target_width, target_height, true);
     }
 }
 
@@ -267,7 +252,7 @@ fn get_file_path_from_file_desc(file: &gio::File) -> Option<String> {
     Some(pathname.to_owned())
 }
 
-fn allocate_drawing_area_and_scale_init_from_image_container (
+fn allocate_drawing_area_and_scale_init_from_image_container(
     image_container_list: &Arc<Mutex<Vec<ImageContainer>>>,
     settings: &Arc<Settings>,
     pos: usize,
@@ -295,7 +280,7 @@ fn open_and_set_image_to_image_container_from_zip(
                 (*image_container_list.lock().unwrap()).push(image_container);
             });
             true
-        },
+        }
         Err(e) => {
             eprintln!("{}", e);
             false
@@ -305,7 +290,7 @@ fn open_and_set_image_to_image_container_from_zip(
 
 fn set_image_to_image_container_from_pdf_pixmaps(
     image_container_list: &Arc<Mutex<Vec<ImageContainer>>>,
-    pdf_pixmaps: &Arc<Mutex<Vec<PdfPixmap>>>
+    pdf_pixmaps: &Arc<Mutex<Vec<PdfPixmap>>>,
 ) {
     pdf_pixmaps.lock().unwrap().iter().for_each(|v| {
         let image_container = ImageContainer::default();
@@ -313,7 +298,6 @@ fn set_image_to_image_container_from_pdf_pixmaps(
         (*image_container_list.lock().unwrap()).push(image_container);
     });
 }
-
 
 fn open_and_set_image_to_image_container_from_file(
     file: &gio::File,
@@ -333,7 +317,7 @@ fn read_dir_and_set_images(
     file: &gio::File,
     image_container_list: &Arc<Mutex<Vec<ImageContainer>>>,
 ) -> bool {
-    let Some(path) =  file.path() else {
+    let Some(path) = file.path() else {
         return false;
     };
     let Some(dir_path) = path.parent() else {
@@ -346,7 +330,7 @@ fn read_dir_and_set_images(
         // entries.sort_by_key(|x| x.file_name().to_string_lossy().into_owned());
         entries.sort_by(|a, b| {
             let a_str = a.file_name().to_str().unwrap().to_owned();
-            let b_str = a.file_name().to_str().unwrap().to_owned();
+            let b_str = b.file_name().to_str().unwrap().to_owned();
             compare_by_natural(&a_str, &b_str)
         });
         for entry in entries {
@@ -355,26 +339,28 @@ fn read_dir_and_set_images(
                     if v.is_file() {
                         let tmp_path = entry.path();
                         let tmp_file = gio::File::for_path(&tmp_path);
-                        let r = open_and_set_image_to_image_container_from_file(&tmp_file, &image_container_list, count);
+                        let r = open_and_set_image_to_image_container_from_file(
+                            &tmp_file,
+                            &image_container_list,
+                            count,
+                        );
                         if r {
                             count = count + 1;
                         }
                     }
-                },
-                Err(_) => {
                 }
+                Err(_) => {}
             }
         }
     }
 
-    if count == 0 {
-        false
-    } else {
-        true
-    }
+    if count == 0 { false } else { true }
 }
 
-fn set_open_file_history_menu(menu: &Arc<Mutex<gio::Menu>>, db_manager: &Arc<Mutex<file_history::DbManager>>) {
+fn set_open_file_history_menu(
+    menu: &Arc<Mutex<gio::Menu>>,
+    db_manager: &Arc<Mutex<file_history::DbManager>>,
+) {
     let unlock_db_manager = db_manager.lock().unwrap();
 
     let open_file_history_list = unlock_db_manager.get_history();
@@ -391,15 +377,24 @@ fn set_open_file_history_menu(menu: &Arc<Mutex<gio::Menu>>, db_manager: &Arc<Mut
     }
 }
 
-fn update_open_file_page_index(db_manager: &Arc<Mutex<file_history::DbManager>>, file_path: &str, page_index: i64) {
+fn update_open_file_page_index(
+    db_manager: &Arc<Mutex<file_history::DbManager>>,
+    file_path: &str,
+    page_index: i64,
+) {
     let unlock_db_manager = db_manager.lock().unwrap();
-    
+
     if unlock_db_manager.is_exists_file_path(file_path) {
         unlock_db_manager.update_page_index(file_path, page_index);
     }
 }
 
-fn update_open_file_history_menu(menu: &Arc<Mutex<gio::Menu>>, db_manager: &Arc<Mutex<file_history::DbManager>>, file_path: &str, pages_info: &Arc<PagesInfo>) {
+fn update_open_file_history_menu(
+    menu: &Arc<Mutex<gio::Menu>>,
+    db_manager: &Arc<Mutex<file_history::DbManager>>,
+    file_path: &str,
+    pages_info: &Arc<PagesInfo>,
+) {
     let unixtime = utils::get_current_unixtime().expect("failed get unixtime");
     let unixtime_i64 = i64::try_from(unixtime).expect("failed convert u64 to i64 at unixtime");
 
@@ -419,11 +414,16 @@ fn update_open_file_history_menu(menu: &Arc<Mutex<gio::Menu>>, db_manager: &Arc<
         PageDirection::LeftToRight => PageDirection::LeftToRight,
     };
     if unlock_db_manager.is_exists_file_path(file_path) {
-        unlock_db_manager.update_history(file_path, unixtime_i64, target_page_index, page_direction);
+        unlock_db_manager.update_history(
+            file_path,
+            unixtime_i64,
+            target_page_index,
+            page_direction,
+        );
     } else {
         unlock_db_manager.add_history(file_path.to_owned(), unixtime_i64, page_direction);
     }
-    
+
     let open_file_history_list = unlock_db_manager.get_history();
     if open_file_history_list.is_empty() {
         return;
@@ -436,12 +436,10 @@ fn update_open_file_history_menu(menu: &Arc<Mutex<gio::Menu>>, db_manager: &Arc<
         item.set_attribute_value("target", Some(&i.location_path.to_variant()));
         unlock_menu.append_item(&item);
     }
-
 }
 
-
 // open file action
-fn open_file_for_action (
+fn open_file_for_action(
     app: &gtk::Application,
     window: &gtk::ApplicationWindow,
     image_container_list: &Arc<Mutex<Vec<ImageContainer>>>,
@@ -452,7 +450,7 @@ fn open_file_for_action (
     spinner: &gtk::Spinner,
     open_file_history_menu: &Arc<Mutex<gio::Menu>>,
     db_manager: &Arc<Mutex<file_history::DbManager>>,
-    file: &gio::File
+    file: &gio::File,
 ) {
     (*image_container_list.lock().unwrap()).clear();
     *pages_info.current_page_index.lock().unwrap() = 0;
@@ -467,60 +465,109 @@ fn open_file_for_action (
             spinner.start();
 
             let _ = std::thread::spawn(move || {
-                let r = open_and_set_image_to_image_container_from_zip(&pathname_cloned, &image_container_list_arc_cloned);
+                let r = open_and_set_image_to_image_container_from_zip(
+                    &pathname_cloned,
+                    &image_container_list_arc_cloned,
+                );
                 if !r {
                     tx.send(ResultLoadFilesWithMultiThread::Failed).unwrap();
                 } else {
                     tx.send(ResultLoadFilesWithMultiThread::Success).unwrap();
                 }
             });
-                    
-            glib::spawn_future_local(glib::clone!(#[weak] app, #[weak] window, #[strong] image_container_list, #[strong] settings, #[weak] drawing_area_ref, #[strong] pages_info, #[weak] pages_bar, #[weak] spinner, #[weak] db_manager,  #[weak] open_file_history_menu, async move {
-                update_window_title(&window, "Now Loading...");
 
-                let _source_id = glib::idle_add_local(glib::clone!(#[strong] image_container_list, #[strong] settings, #[strong] drawing_area_ref, #[strong] pages_bar, move || {
-                    match rx.try_recv() {
-                        Ok(v) => {
-                            match v {
-                                ResultLoadFilesWithMultiThread::Success => {
-                                    allocate_drawing_area_and_scale_init_from_image_container(&image_container_list, &settings, 0, &drawing_area_ref);
-                                    *pages_info.loaded_filename.lock().unwrap() = Some(pathname.clone());
-                                    update_window_title(&window, &pathname);
-                                            
+            glib::spawn_future_local(glib::clone!(
+                #[weak]
+                app,
+                #[weak]
+                window,
+                #[strong]
+                image_container_list,
+                #[strong]
+                settings,
+                #[weak]
+                drawing_area_ref,
+                #[strong]
+                pages_info,
+                #[weak]
+                pages_bar,
+                #[weak]
+                spinner,
+                #[weak]
+                db_manager,
+                #[weak]
+                open_file_history_menu,
+                async move {
+                    update_window_title(&window, "Now Loading...");
 
-                                    spinner.stop();
-                                    spinner.hide();
+                    let _source_id = glib::idle_add_local(glib::clone!(
+                        #[strong]
+                        image_container_list,
+                        #[strong]
+                        settings,
+                        #[strong]
+                        drawing_area_ref,
+                        #[strong]
+                        pages_bar,
+                        move || {
+                            match rx.try_recv() {
+                                Ok(v) => {
+                                    match v {
+                                        ResultLoadFilesWithMultiThread::Success => {
+                                            allocate_drawing_area_and_scale_init_from_image_container(&image_container_list, &settings, 0, &drawing_area_ref);
+                                            *pages_info.loaded_filename.lock().unwrap() =
+                                                Some(pathname.clone());
+                                            update_window_title(&window, &pathname);
 
-                                    pages_bar.set_fraction(0.0);
-                                    pages_bar.set_inverted(true);
+                                            spinner.stop();
+                                            spinner.hide();
 
-                                    restore_pages_info(&db_manager, &pages_info, &pathname);
-                                    sync_page_direction_action_state(&app, &pages_info);
+                                            pages_bar.set_fraction(0.0);
+                                            pages_bar.set_inverted(true);
 
-                                    let restored_page_index = *pages_info.current_page_index.lock().unwrap();
-                                    set_page(restored_page_index, &settings, &drawing_area_ref, &image_container_list, &pages_info, &db_manager);  
-                                            
-                                    drawing_area_ref.queue_draw();
+                                            restore_pages_info(&db_manager, &pages_info, &pathname);
+                                            sync_page_direction_action_state(&app, &pages_info);
 
-                                    update_open_file_history_menu(&open_file_history_menu, &db_manager, &pathname, &pages_info);
+                                            let restored_page_index =
+                                                *pages_info.current_page_index.lock().unwrap();
+                                            set_page(
+                                                restored_page_index,
+                                                &settings,
+                                                &drawing_area_ref,
+                                                &image_container_list,
+                                                &pages_info,
+                                                &db_manager,
+                                            );
 
-                                    return glib::ControlFlow::Break;
-                                },
-                                ResultLoadFilesWithMultiThread::Failed => {
-                                    spinner.stop();
-                                    spinner.hide();
+                                            drawing_area_ref.queue_draw();
 
-                                    update_window_title(&window, "Failed");
-                                    return glib::ControlFlow::Break;
+                                            update_open_file_history_menu(
+                                                &open_file_history_menu,
+                                                &db_manager,
+                                                &pathname,
+                                                &pages_info,
+                                            );
+
+                                            return glib::ControlFlow::Break;
+                                        }
+                                        ResultLoadFilesWithMultiThread::Failed => {
+                                            spinner.stop();
+                                            spinner.hide();
+
+                                            update_window_title(&window, "Failed");
+                                            return glib::ControlFlow::Break;
+                                        }
+                                    }
+                                }
+                                Err(_) => {
+                                    return glib::ControlFlow::Continue;
                                 }
                             }
-                        },
-                        Err(_) => {
-                            return glib::ControlFlow::Continue;
                         }
-                    }}));
-            }));
-        },
+                    ));
+                }
+            ));
+        }
         utils::FileType::PDF => {
             let pathname = get_file_path_from_file_desc(&file).unwrap();
             let pathname_cloned = pathname.clone();
@@ -528,63 +575,106 @@ fn open_file_for_action (
             spinner.show();
             spinner.start();
             let (tx, rx) = std::sync::mpsc::sync_channel::<ResultLoadFilesWithMultiThread>(1);
-            let pdf_pixmaps_arc: Arc<Mutex<Vec<PdfPixmap>>> = Arc::new(Mutex::new(vec!()));
+            let pdf_pixmaps_arc: Arc<Mutex<Vec<PdfPixmap>>> = Arc::new(Mutex::new(vec![]));
             let pdf_pixmaps_arc_clone = Arc::clone(&pdf_pixmaps_arc);
             let _ = std::thread::spawn(move || {
                 match pdf_loader::load_pdf(&pathname_cloned, &pdf_pixmaps_arc_clone) {
                     Ok(_) => tx.send(ResultLoadFilesWithMultiThread::Success).unwrap(),
-                    Err(_) => tx.send(ResultLoadFilesWithMultiThread::Failed).unwrap()
+                    Err(_) => tx.send(ResultLoadFilesWithMultiThread::Failed).unwrap(),
                 }
             });
 
-            glib::spawn_future_local(glib::clone!(#[weak] app, #[weak] window, #[weak] image_container_list, #[strong] settings, #[weak] drawing_area_ref, #[strong] pages_info, #[weak] pages_bar, #[weak] spinner, #[weak] db_manager, #[weak] open_file_history_menu, async move {
-
-                let _source_id = glib::idle_add_local(glib::clone!(#[strong] image_container_list, #[strong] settings, #[strong] drawing_area_ref, #[strong] pages_bar, move || {
-                    match rx.try_recv() {
-                        Ok(v) => {
-                            match v {
-                                ResultLoadFilesWithMultiThread::Success => {
-                                    set_image_to_image_container_from_pdf_pixmaps(&image_container_list, &pdf_pixmaps_arc);
-                                    allocate_drawing_area_and_scale_init_from_image_container(&image_container_list,
+            glib::spawn_future_local(glib::clone!(
+                #[weak]
+                window,
+                #[weak]
+                image_container_list,
+                #[strong]
+                settings,
+                #[weak]
+                drawing_area_ref,
+                #[strong]
+                pages_info,
+                #[weak]
+                pages_bar,
+                #[weak]
+                spinner,
+                #[weak]
+                db_manager,
+                #[weak]
+                open_file_history_menu,
+                async move {
+                    let _source_id = glib::idle_add_local(glib::clone!(
+                        #[strong]
+                        image_container_list,
+                        #[strong]
+                        settings,
+                        #[strong]
+                        drawing_area_ref,
+                        #[strong]
+                        pages_bar,
+                        move || {
+                            match rx.try_recv() {
+                                Ok(v) => {
+                                    match v {
+                                        ResultLoadFilesWithMultiThread::Success => {
+                                            set_image_to_image_container_from_pdf_pixmaps(
+                                                &image_container_list,
+                                                &pdf_pixmaps_arc,
+                                            );
+                                            allocate_drawing_area_and_scale_init_from_image_container(&image_container_list,
                                                                                               &settings,
                                                                                               0,
                                                                                               &drawing_area_ref);
-                                    *pages_info.loaded_filename.lock().unwrap() = Some(pathname.clone());
-                                    update_window_title(&window, &pathname);
+                                            *pages_info.loaded_filename.lock().unwrap() =
+                                                Some(pathname.clone());
+                                            update_window_title(&window, &pathname);
 
+                                            spinner.stop();
+                                            spinner.hide();
 
-                                    spinner.stop();
-                                    spinner.hide();
-                                            
-                                    pages_bar.set_fraction(0.0);
-                                    pages_bar.set_inverted(true);
+                                            pages_bar.set_fraction(0.0);
+                                            pages_bar.set_inverted(true);
 
-                                    set_page(0, &settings, &drawing_area_ref, &image_container_list, &pages_info, &db_manager);
-                                            
-                                    drawing_area_ref.queue_draw();
-                                    update_open_file_history_menu(&open_file_history_menu, &db_manager, &pathname, &pages_info);
+                                            set_page(
+                                                0,
+                                                &settings,
+                                                &drawing_area_ref,
+                                                &image_container_list,
+                                                &pages_info,
+                                                &db_manager,
+                                            );
 
-                                    return glib::ControlFlow::Break;
-                                },
-                                ResultLoadFilesWithMultiThread::Failed => {
-                                    spinner.stop();
-                                    spinner.hide();
+                                            drawing_area_ref.queue_draw();
+                                            update_open_file_history_menu(
+                                                &open_file_history_menu,
+                                                &db_manager,
+                                                &pathname,
+                                                &pages_info,
+                                            );
 
-                                    update_window_title(&window, "Failed");
-                                    return glib::ControlFlow::Break;
+                                            return glib::ControlFlow::Break;
+                                        }
+                                        ResultLoadFilesWithMultiThread::Failed => {
+                                            spinner.stop();
+                                            spinner.hide();
+
+                                            update_window_title(&window, "Failed");
+                                            return glib::ControlFlow::Break;
+                                        }
+                                    }
+                                }
+                                Err(_) => {
+                                    return glib::ControlFlow::Continue;
                                 }
                             }
-                        },
-                        Err(_) => {
-                            return glib::ControlFlow::Continue;
                         }
-                    }
-                }));
-            }));                    
-        },
+                    ));
+                }
+            ));
+        }
         _ => {
             let pathname = get_file_path_from_file_desc(&file).unwrap();
-            let pathname_cloned = pathname.clone();
             let Some(path) = file.path() else { return };
             let Some(dir_path) = path.parent() else {
                 eprintln!("Failed get parent directory from path");
@@ -615,56 +705,99 @@ fn open_file_for_action (
                 }
             });
 
-
-
-            glib::spawn_future_local(glib::clone!(#[weak] app, #[weak] window, #[weak] image_container_list, #[strong] settings, #[weak] drawing_area_ref, #[strong] pages_info, #[weak] pages_bar, #[weak] spinner, #[weak] db_manager, #[weak] open_file_history_menu, async move {
-                
-                let _source_id = glib::idle_add_local(glib::clone!(#[strong] image_container_list, #[strong] settings, #[strong] drawing_area_ref, #[strong] pages_bar, move || {
-                    match rx.try_recv() {
-                        Ok(v) => {
-                            match v {
-                                ResultLoadFilesWithMultiThread::Success => {
-                                    allocate_drawing_area_and_scale_init_from_image_container(&image_container_list,
+            glib::spawn_future_local(glib::clone!(
+                #[weak]
+                app,
+                #[weak]
+                window,
+                #[weak]
+                image_container_list,
+                #[strong]
+                settings,
+                #[weak]
+                drawing_area_ref,
+                #[strong]
+                pages_info,
+                #[weak]
+                pages_bar,
+                #[weak]
+                spinner,
+                #[weak]
+                db_manager,
+                #[weak]
+                open_file_history_menu,
+                async move {
+                    let _source_id = glib::idle_add_local(glib::clone!(
+                        #[strong]
+                        image_container_list,
+                        #[strong]
+                        settings,
+                        #[strong]
+                        drawing_area_ref,
+                        #[strong]
+                        pages_bar,
+                        move || {
+                            match rx.try_recv() {
+                                Ok(v) => {
+                                    match v {
+                                        ResultLoadFilesWithMultiThread::Success => {
+                                            allocate_drawing_area_and_scale_init_from_image_container(&image_container_list,
                                                                                               &settings,
                                                                                               0,
                                                                                               &drawing_area_ref);
-                                    *pages_info.loaded_dirname.lock().unwrap() = Some(dir_path_string.to_owned());
-                                    update_window_title(&window, &pathname);
+                                            *pages_info.loaded_dirname.lock().unwrap() =
+                                                Some(dir_path_string.to_owned());
+                                            update_window_title(&window, &pathname);
 
-                                    spinner.stop();
-                                    spinner.hide();
-                                            
-                                    pages_bar.set_fraction(0.0);
-                                    pages_bar.set_inverted(true);
+                                            spinner.stop();
+                                            spinner.hide();
 
-                                    restore_pages_info(&db_manager, &pages_info, &pathname);
-                                    sync_page_direction_action_state(&app, &pages_info);
+                                            pages_bar.set_fraction(0.0);
+                                            pages_bar.set_inverted(true);
 
-                                    let restored_page_index = *pages_info.current_page_index.lock().unwrap();
-                                    set_page(restored_page_index, &settings, &drawing_area_ref, &image_container_list, &pages_info, &db_manager);  
-                                            
-                                    drawing_area_ref.queue_draw();
-                                    update_open_file_history_menu(&open_file_history_menu, &db_manager, &pathname, &pages_info);
+                                            restore_pages_info(&db_manager, &pages_info, &pathname);
+                                            sync_page_direction_action_state(&app, &pages_info);
 
-                                    return glib::ControlFlow::Break;
-                                },
-                                ResultLoadFilesWithMultiThread::Failed => {
-                                    spinner.stop();
-                                    spinner.hide();
+                                            let restored_page_index =
+                                                *pages_info.current_page_index.lock().unwrap();
+                                            set_page(
+                                                restored_page_index,
+                                                &settings,
+                                                &drawing_area_ref,
+                                                &image_container_list,
+                                                &pages_info,
+                                                &db_manager,
+                                            );
 
-                                    update_window_title(&window, "Failed");
-                                    return glib::ControlFlow::Break;
+                                            drawing_area_ref.queue_draw();
+                                            update_open_file_history_menu(
+                                                &open_file_history_menu,
+                                                &db_manager,
+                                                &pathname,
+                                                &pages_info,
+                                            );
+
+                                            return glib::ControlFlow::Break;
+                                        }
+                                        ResultLoadFilesWithMultiThread::Failed => {
+                                            spinner.stop();
+                                            spinner.hide();
+
+                                            update_window_title(&window, "Failed");
+                                            return glib::ControlFlow::Break;
+                                        }
+                                    }
+                                }
+                                Err(_) => {
+                                    return glib::ControlFlow::Continue;
                                 }
                             }
-                        },
-                        Err(_) => {
-                            return glib::ControlFlow::Continue;
                         }
-                    }
-                }));
-            }));
+                    ));
+                }
+            ));
         }
-    };            
+    };
 }
 
 fn open_file_action_with_dialog(
@@ -677,7 +810,7 @@ fn open_file_action_with_dialog(
     pages_info: &Arc<PagesInfo>,
     spinner: &gtk::Spinner,
     open_file_history_menu: &Arc<Mutex<gio::Menu>>,
-    db_manager: &Arc<Mutex<file_history::DbManager>>
+    db_manager: &Arc<Mutex<file_history::DbManager>>,
 ) {
     let dialog = gtk::FileChooserDialog::new(
         Some("File Select"),
@@ -696,20 +829,55 @@ fn open_file_action_with_dialog(
     file_filter.add_pattern("*.pdf");
     dialog.add_filter(&file_filter);
 
+    dialog.connect_response(glib::clone!(
+        #[weak]
+        app,
+        #[weak]
+        window,
+        #[strong]
+        image_container_list,
+        #[strong]
+        pages_info,
+        #[weak]
+        drawing_area_ref,
+        #[weak]
+        pages_bar,
+        #[weak]
+        spinner,
+        #[strong]
+        settings,
+        #[weak]
+        open_file_history_menu,
+        #[weak]
+        db_manager,
+        move |file_dialog, response| {
+            if response == gtk::ResponseType::Ok {
+                let Some(file) = file_dialog.file() else {
+                    return;
+                };
+                let Some(path) = file.path() else { return };
+                if !path.is_file() {
+                    return;
+                }
 
-    dialog.connect_response(glib::clone!(#[weak] app, #[weak] window, #[strong] image_container_list, #[strong] pages_info, #[weak] drawing_area_ref, #[weak] pages_bar,  #[weak] spinner, #[strong] settings, #[weak] open_file_history_menu, #[weak] db_manager, move |file_dialog, response| {
-        if response == gtk::ResponseType::Ok {
-            let Some(file) = file_dialog.file() else { return };
-            let Some(path) = file.path() else { return };
-            if !path.is_file() { return; }
-
-            open_file_for_action(&app, &window, &image_container_list, &drawing_area_ref, &pages_bar, &settings, &pages_info, &spinner, &open_file_history_menu, &db_manager, &file);
-
+                open_file_for_action(
+                    &app,
+                    &window,
+                    &image_container_list,
+                    &drawing_area_ref,
+                    &pages_bar,
+                    &settings,
+                    &pages_info,
+                    &spinner,
+                    &open_file_history_menu,
+                    &db_manager,
+                    &file,
+                );
+            }
+            file_dialog.close();
         }
-        file_dialog.close();
-    }));
+    ));
 
-    
     dialog.show();
 }
 
@@ -722,76 +890,150 @@ fn create_action_entry_for_menu(
     settings: &std::sync::Arc<Settings>,
     spinner: &gtk::Spinner,
     open_file_history_menu: &Arc<Mutex<gio::Menu>>,
-    db_manager: &Arc<Mutex<file_history::DbManager>>
+    db_manager: &Arc<Mutex<file_history::DbManager>>,
 ) -> Vec<gio::ActionEntry<gtk::Application>> {
-    
-    let open_file_action_entry: gio::ActionEntry<gtk::Application> = gio::ActionEntry::builder("file_open")
-        .activate(glib::clone!(#[weak] window, #[strong] image_container_list,
-            #[strong] pages_info, #[strong] settings, #[strong] drawing_area_ref, #[weak] pages_bar, #[weak] spinner, #[weak] open_file_history_menu, #[weak] db_manager, move |app: &gtk::Application, _action: &gio::SimpleAction, _user_data: Option<&glib::Variant>| {
-                open_file_action_with_dialog(app,
-                                 &window,
-                                 &image_container_list,
-                                 &drawing_area_ref,
-                                 &pages_bar,
-                                 &settings,
-                                 &pages_info,
-                                 &spinner,
-                                 &open_file_history_menu,
-                                 &db_manager);
-        }))
-        .build();
+    let open_file_action_entry: gio::ActionEntry<gtk::Application> =
+        gio::ActionEntry::builder("file_open")
+            .activate(glib::clone!(
+                #[weak]
+                window,
+                #[strong]
+                image_container_list,
+                #[strong]
+                pages_info,
+                #[strong]
+                settings,
+                #[strong]
+                drawing_area_ref,
+                #[weak]
+                pages_bar,
+                #[weak]
+                spinner,
+                #[weak]
+                open_file_history_menu,
+                #[weak]
+                db_manager,
+                move |app: &gtk::Application,
+                      _action: &gio::SimpleAction,
+                      _user_data: Option<&glib::Variant>| {
+                    open_file_action_with_dialog(
+                        app,
+                        &window,
+                        &image_container_list,
+                        &drawing_area_ref,
+                        &pages_bar,
+                        &settings,
+                        &pages_info,
+                        &spinner,
+                        &open_file_history_menu,
+                        &db_manager,
+                    );
+                }
+            ))
+            .build();
 
-    let open_file_from_history_action_entry: gio::ActionEntry<gtk::Application> = gio::ActionEntry::builder("open_file_from_history")
-        .parameter_type(Some(VariantTy::STRING))
-        .activate(glib::clone!(#[weak] window, #[strong] image_container_list,
-                               #[strong] pages_info, #[strong] settings, #[strong] drawing_area_ref, #[weak] pages_bar, #[weak] spinner, #[weak] open_file_history_menu, #[weak] db_manager, move |_app: &gtk::Application, _action: &gio::SimpleAction, _user_data: Option<&glib::Variant>| {
-                                   let path_str = _user_data.expect("failed get userdata in open_file_from_history_action_entry").get::<String>().expect("failed get variant in open_file_from_history_action_entry");
-                                   let file = gio::File::for_path(path_str);
-                                   open_file_for_action(_app,
-                                                        &window,
-                                                        &image_container_list,
-                                                        &drawing_area_ref,
-                                                        &pages_bar,
-                                                        &settings,
-                                                        &pages_info,
-                                                        &spinner,
-                                                        &open_file_history_menu,
-                                                        &db_manager,
-                                                        &file);
-                               }))
-        .build();
-
+    let open_file_from_history_action_entry: gio::ActionEntry<gtk::Application> =
+        gio::ActionEntry::builder("open_file_from_history")
+            .parameter_type(Some(VariantTy::STRING))
+            .activate(glib::clone!(
+                #[weak]
+                window,
+                #[strong]
+                image_container_list,
+                #[strong]
+                pages_info,
+                #[strong]
+                settings,
+                #[strong]
+                drawing_area_ref,
+                #[weak]
+                pages_bar,
+                #[weak]
+                spinner,
+                #[weak]
+                open_file_history_menu,
+                #[weak]
+                db_manager,
+                move |_app: &gtk::Application,
+                      _action: &gio::SimpleAction,
+                      _user_data: Option<&glib::Variant>| {
+                    let path_str = _user_data
+                        .expect("failed get userdata in open_file_from_history_action_entry")
+                        .get::<String>()
+                        .expect("failed get variant in open_file_from_history_action_entry");
+                    let file = gio::File::for_path(path_str);
+                    open_file_for_action(
+                        _app,
+                        &window,
+                        &image_container_list,
+                        &drawing_area_ref,
+                        &pages_bar,
+                        &settings,
+                        &pages_info,
+                        &spinner,
+                        &open_file_history_menu,
+                        &db_manager,
+                        &file,
+                    );
+                }
+            ))
+            .build();
 
     let quit_action_entry: gio::ActionEntry<gtk::Application> = gio::ActionEntry::builder("quit")
-        .activate(glib::clone!(#[weak] window, move |app: &gtk::Application, action: &gio::SimpleAction, user_data: Option<&glib::Variant>| {
-            app.quit();
-        })).build();
+        .activate(
+            move |app: &gtk::Application,
+                  _action: &gio::SimpleAction,
+                  _user_data: Option<&glib::Variant>| {
+                app.quit();
+            },
+        )
+        .build();
 
-    let view_action_entry: gio::ActionEntry<gtk::Application> = gio::ActionEntry::builder("page-direction")
-        .state(PageDirection::RightToLeft.as_str().to_variant())
-        .parameter_type(Some(&String::static_variant_type()))
-        .change_state(glib::clone!(#[strong] pages_info, #[weak] drawing_area_ref, #[weak] db_manager, move |_app: &gtk::Application, action: &gio::SimpleAction, _user_data: Option<&glib::Variant>| {
-            let Some(user_data) = _user_data else {
-                return;
-            };
+    let view_action_entry: gio::ActionEntry<gtk::Application> =
+        gio::ActionEntry::builder("page-direction")
+            .state(PageDirection::RightToLeft.as_str().to_variant())
+            .parameter_type(Some(&String::static_variant_type()))
+            .change_state(glib::clone!(
+                #[strong]
+                pages_info,
+                #[weak]
+                drawing_area_ref,
+                #[weak]
+                db_manager,
+                move |_app: &gtk::Application,
+                      action: &gio::SimpleAction,
+                      _user_data: Option<&glib::Variant>| {
+                    let Some(user_data) = _user_data else {
+                        return;
+                    };
 
-            let Some(s) = user_data.get::<String>() else {
-                return;
-            };
+                    let Some(s) = user_data.get::<String>() else {
+                        return;
+                    };
 
-            let Ok(page_direction) = PageDirection::from_str(&s) else {
-                return;
-            };
+                    let Ok(page_direction) = PageDirection::from_str(&s) else {
+                        return;
+                    };
 
-            let loaded_filename = pages_info.loaded_filename.lock().unwrap().clone();
-            change_page_direction(&db_manager, &pages_info, page_direction, loaded_filename.as_deref());
-            action.set_state(&page_direction.as_str().to_variant());
-            drawing_area_ref.queue_draw();
-            
-        })).build();
+                    let loaded_filename = pages_info.loaded_filename.lock().unwrap().clone();
+                    change_page_direction(
+                        &db_manager,
+                        &pages_info,
+                        page_direction,
+                        loaded_filename.as_deref(),
+                    );
+                    action.set_state(&page_direction.as_str().to_variant());
+                    drawing_area_ref.queue_draw();
+                }
+            ))
+            .build();
 
-    let result: Vec<gio::ActionEntry<gtk::Application>> =
-        vec![open_file_action_entry, open_file_from_history_action_entry, quit_action_entry, view_action_entry];
+    let result: Vec<gio::ActionEntry<gtk::Application>> = vec![
+        open_file_action_entry,
+        open_file_from_history_action_entry,
+        quit_action_entry,
+        view_action_entry,
+    ];
     result
 }
 
@@ -829,8 +1071,8 @@ fn draw_single_page(
 
 fn draw_right_to_left_when_dual(
     image_container_list: &Vec<ImageContainer>,
-    pages_info: &PagesInfo,
-    settings: &Settings,
+    _pages_info: &PagesInfo,
+    _settings: &Settings,
     area: &DrawingArea,
     ctx: &cairo::Context,
     right_index: usize,
@@ -860,7 +1102,8 @@ fn draw_right_to_left_when_dual(
 
     if left_index >= image_container_list.len() {
         // FIXME: refelect page dirction. current is only support right to left.
-        let margin = calc_margin_for_single(&right, area.allocated_width(), area.allocated_height());
+        let margin =
+            calc_margin_for_single(&right, area.allocated_width(), area.allocated_height());
         let top_margin = f64::from(margin.top_margin);
 
         let _ = ctx.set_source_surface(&surface_for_right, right_pos, top_margin);
@@ -919,15 +1162,14 @@ fn draw_right_to_left_when_dual(
     let _ = ctx.paint();
 }
 
-
 fn draw_left_to_right_when_dual(
-  image_container_list: &Vec<ImageContainer>,
-  pages_info: &PagesInfo,
-  settings: &Settings,
-  area: &DrawingArea,
-  ctx: &cairo::Context,
-  right_index: usize,
-  left_index: usize,
+    image_container_list: &Vec<ImageContainer>,
+    _pages_info: &PagesInfo,
+    _settings: &Settings,
+    area: &DrawingArea,
+    ctx: &cairo::Context,
+    right_index: usize,
+    left_index: usize,
 ) {
     let half_area_width = area.allocated_width() / 2;
 
@@ -964,12 +1206,6 @@ fn draw_left_to_right_when_dual(
         let _ = ctx.paint();
         return;
     };
-    let right_format = if right.has_alpha() {
-        cairo::Format::ARgb32
-    } else {
-        cairo::Format::Rgb24
-    };
-
     let margin = calc_margin_for_dual(
         &left,
         &right,
@@ -981,7 +1217,6 @@ fn draw_left_to_right_when_dual(
     let top_margin_for_right = f64::from(margin.top_margin_for_right);
 
     let left_pic_width = left.width();
-    let right_pic_width = right.width();
     let final_left_margin = if left_pic_width > half_area_width || left_pic_width == half_area_width
     {
         0.0
@@ -994,7 +1229,6 @@ fn draw_left_to_right_when_dual(
     } else {
         left_margin + f64::from(left_pic_width)
     };
-
 
     let _ = ctx.set_source_surface(&surface_for_left, right_margin, top_margin_for_right);
     let _ = ctx.set_source_pixbuf(&right, right_margin, top_margin_for_right);
@@ -1030,15 +1264,28 @@ fn draw_dual_page(
     };
 
     match *page_direction {
-        PageDirection::RightToLeft => draw_right_to_left_when_dual(image_container_list, pages_info, settings, area, ctx, right_index, left_index),
-        PageDirection::LeftToRight => draw_left_to_right_when_dual(image_container_list, pages_info, settings, area, ctx, right_index, left_index),
+        PageDirection::RightToLeft => draw_right_to_left_when_dual(
+            image_container_list,
+            pages_info,
+            settings,
+            area,
+            ctx,
+            right_index,
+            left_index,
+        ),
+        PageDirection::LeftToRight => draw_left_to_right_when_dual(
+            image_container_list,
+            pages_info,
+            settings,
+            area,
+            ctx,
+            right_index,
+            left_index,
+        ),
     }
 }
 
-fn fullscreen(
-    window: &gtk::ApplicationWindow,
-    pages_bar: &gtk::ProgressBar,
-) {
+fn fullscreen(window: &gtk::ApplicationWindow, pages_bar: &gtk::ProgressBar) {
     if window.is_fullscreen() {
         window.unfullscreen();
         window.set_show_menubar(true);
@@ -1050,7 +1297,12 @@ fn fullscreen(
     }
 }
 
-fn change_page_direction(db_manager: &Arc<Mutex<file_history::DbManager>>, pages_info: &Arc<PagesInfo>, page_direction: PageDirection, file_path: Option<&str>) {
+fn change_page_direction(
+    db_manager: &Arc<Mutex<file_history::DbManager>>,
+    pages_info: &Arc<PagesInfo>,
+    page_direction: PageDirection,
+    file_path: Option<&str>,
+) {
     *pages_info.page_direction.lock().unwrap() = match page_direction {
         PageDirection::RightToLeft => PageDirection::RightToLeft,
         PageDirection::LeftToRight => PageDirection::LeftToRight,
@@ -1074,7 +1326,11 @@ fn sync_page_direction_action_state(app: &gtk::Application, pages_info: &Arc<Pag
     action.set_state(&page_direction.as_str().to_variant());
 }
 
-fn restore_pages_info(db_manager: &Arc<Mutex<file_history::DbManager>>, pages_info: &Arc<PagesInfo>, file_path: &str) {
+fn restore_pages_info(
+    db_manager: &Arc<Mutex<file_history::DbManager>>,
+    pages_info: &Arc<PagesInfo>,
+    file_path: &str,
+) {
     let db = db_manager.lock().unwrap();
     let pages_from_db = db.get_pages_info(file_path);
     if pages_from_db.is_some() {
@@ -1093,8 +1349,8 @@ fn set_page(
     drawing_area: &DrawingArea,
     image_container_list: &Arc<Mutex<Vec<ImageContainer>>>,
     pages_info: &Arc<PagesInfo>,
-    db_manager: &Arc<Mutex<file_history::DbManager>>) {
-    
+    db_manager: &Arc<Mutex<file_history::DbManager>>,
+) {
     let max_len = (*image_container_list.lock().unwrap()).len();
     if page_index > max_len {
         return;
@@ -1144,7 +1400,6 @@ fn move_page(
     }
 
     let is_dual = *settings.is_dual_mode.lock().unwrap();
-    let page_direction = pages_info.page_direction.lock().unwrap();
     let size = (*image_container_list.lock().unwrap()).len();
     let i = pages_info.current_page_index.lock().unwrap().clone();
     if i == 0 && n < 0 {
@@ -1165,7 +1420,11 @@ fn move_page(
     // }
 
     let step_of_result = if is_dual { 2 } else { 1 };
-    let tmp_step_left = if is_dual { (finally_page_index + step_of_result) as f64 } else { (finally_page_index + 1) as f64 };
+    let tmp_step_left = if is_dual {
+        (finally_page_index + step_of_result) as f64
+    } else {
+        (finally_page_index + 1) as f64
+    };
     let tmp_step_right = size as f64;
     let progress_step = if (finally_page_index + step_of_result) >= size {
         1.0
@@ -1178,19 +1437,30 @@ fn move_page(
     pages_bar.set_fraction(progress_step);
     pages_bar.show();
 
-    glib::spawn_future_local(glib::clone!(#[weak] pages_bar, async move {
-        glib::timeout_add_local(std::time::Duration::from_secs(2), move || {
-            pages_bar.hide();
-            glib::ControlFlow::Break
-        });
-    }));
+    glib::spawn_future_local(glib::clone!(
+        #[weak]
+        pages_bar,
+        async move {
+            glib::timeout_add_local(std::time::Duration::from_secs(2), move || {
+                pages_bar.hide();
+                glib::ControlFlow::Break
+            });
+        }
+    ));
 
-    set_page(finally_page_index, settings, drawing_area, image_container_list, pages_info, db_manager);
+    set_page(
+        finally_page_index,
+        settings,
+        drawing_area,
+        image_container_list,
+        pages_info,
+        db_manager,
+    );
     drawing_area.queue_draw();
 }
 
 impl MainWindow {
-    fn new(app: &Application) -> Self {
+    fn new(_app: &Application) -> Self {
         let window_ui_src = include_str!("window.ui");
 
         let builder = gtk::Builder::new();
@@ -1221,7 +1491,7 @@ impl MainWindow {
         result
     }
 
-fn init(&self, app: &Application, width: i32, height: i32) -> Result<()> {
+    fn init(&self, app: &Application, width: i32, height: i32) -> Result<()> {
         // let _header_bar = gtk::HeaderBar::builder().build();
         // self.window.set_titlebar(Some(&_header_bar));
         self.window.set_title(Some("Simple Comics Viewer"));
@@ -1233,7 +1503,6 @@ fn init(&self, app: &Application, width: i32, height: i32) -> Result<()> {
         let pages_info = &self.pages_info;
         let settings = &self.settings;
         *settings.is_dual_mode.lock().unwrap() = true;
-
 
         let xdg_config_path = utils::get_xdg_config_home();
         let sqlite_name = "simple_comics_viewer.db";
@@ -1248,19 +1517,22 @@ fn init(&self, app: &Application, width: i32, height: i32) -> Result<()> {
         let builder = gtk::Builder::new();
         builder.add_from_string(menu_ui_src)?;
 
-        let open_file_history_menu: gio::Menu = builder.object("file-history").expect("failed get file-history section");
-        let open_file_history_menu_arc = std::sync::Arc::new(std::sync::Mutex::new(open_file_history_menu));
+        let open_file_history_menu: gio::Menu = builder
+            .object("file-history")
+            .expect("failed get file-history section");
+        let open_file_history_menu_arc =
+            std::sync::Arc::new(std::sync::Mutex::new(open_file_history_menu));
         let open_file_history_menu_arc_ref = &open_file_history_menu_arc;
         set_open_file_history_menu(open_file_history_menu_arc_ref, db_manager_arc_ref);
 
-        let menu_model = builder.object::<gio::MenuModel>("menu")
+        let menu_model = builder
+            .object::<gio::MenuModel>("menu")
             .expect("failed load menu");
-        
+
         let popover_menu = gtk::PopoverMenu::from_model(Some(&menu_model));
         app.set_menubar(Some(&popover_menu.menu_model().unwrap()));
 
-        let pages_bar = gtk::ProgressBar::builder()
-            .build();
+        let pages_bar = gtk::ProgressBar::builder().build();
         pages_bar.hide();
         pages_bar.set_valign(gtk::Align::End);
 
@@ -1274,73 +1546,121 @@ fn init(&self, app: &Application, width: i32, height: i32) -> Result<()> {
             .halign(gtk::Align::Fill)
             .valign(gtk::Align::Fill)
             .build();
-        drawing_area.set_draw_func(glib::clone!(#[strong] image_container_list, #[strong] pages_info, #[strong] settings, move |area: &DrawingArea, ctx: &cairo::Context, width: i32, height: i32| {
-            if (*image_container_list.lock().unwrap()).is_empty() {
-                return;
-            }
+        drawing_area.set_draw_func(glib::clone!(
+            #[strong]
+            image_container_list,
+            #[strong]
+            pages_info,
+            #[strong]
+            settings,
+            move |area: &DrawingArea, ctx: &cairo::Context, _width: i32, _height: i32| {
+                if (*image_container_list.lock().unwrap()).is_empty() {
+                    return;
+                }
 
-            if *settings.is_dual_mode.lock().unwrap() {
-                draw_dual_page(&*image_container_list.lock().unwrap(), &pages_info, &settings, area, ctx);
-            } else {
-                draw_single_page(&*image_container_list.lock().unwrap(), &pages_info, area, ctx);
+                if *settings.is_dual_mode.lock().unwrap() {
+                    draw_dual_page(
+                        &*image_container_list.lock().unwrap(),
+                        &pages_info,
+                        &settings,
+                        area,
+                        ctx,
+                    );
+                } else {
+                    draw_single_page(
+                        &*image_container_list.lock().unwrap(),
+                        &pages_info,
+                        area,
+                        ctx,
+                    );
+                }
             }
-        }));
+        ));
 
-        let _ = drawing_area.connect_resize(glib::clone!(#[strong] image_container_list, #[strong] pages_info, #[strong] settings, move|_drawing_area: &DrawingArea, width: i32, height: i32| {
-            if (*image_container_list.lock().unwrap()).is_empty() { return; }
-            
-            let index = pages_info.current_page_index.lock().unwrap().clone();
-            if *settings.is_dual_mode.lock().unwrap() {
-                scale_page_for_dual(&image_container_list, index, width, height);
-            } else {
-                scale_page_for_single(&image_container_list, index, width, height);                
+        let _ = drawing_area.connect_resize(glib::clone!(
+            #[strong]
+            image_container_list,
+            #[strong]
+            pages_info,
+            #[strong]
+            settings,
+            move |_drawing_area: &DrawingArea, width: i32, height: i32| {
+                if (*image_container_list.lock().unwrap()).is_empty() {
+                    return;
+                }
+
+                let index = pages_info.current_page_index.lock().unwrap().clone();
+                if *settings.is_dual_mode.lock().unwrap() {
+                    scale_page_for_dual(&image_container_list, index, width, height);
+                } else {
+                    scale_page_for_single(&image_container_list, index, width, height);
+                }
             }
-        }));
+        ));
 
         let event_controller_key = EventControllerKey::builder().build();
-        let _ = event_controller_key.connect_key_pressed(glib::clone!(#[strong] app, #[strong] window, #[strong] image_container_list, #[strong] pages_info, #[strong] settings, #[strong] drawing_area, #[strong] pages_bar, #[strong] pages_info, #[strong] spinner, #[strong] open_file_history_menu_arc_ref, #[strong] db_manager_arc_ref, move |_event_controller_key: &EventControllerKey, keyval: gdk::Key, _keycode: u32, state: gdk::ModifierType| {
-            
-            if state == gdk::ModifierType::ALT_MASK && keyval == gdk::Key::Return {
-                fullscreen(&window, &pages_bar);
-                return Propagation::Stop;
-            }
+        let _ = event_controller_key.connect_key_pressed(glib::clone!(
+            #[strong]
+            app,
+            #[strong]
+            window,
+            #[strong]
+            image_container_list,
+            #[strong]
+            pages_info,
+            #[strong]
+            settings,
+            #[strong]
+            drawing_area,
+            #[strong]
+            pages_bar,
+            #[strong]
+            pages_info,
+            #[strong]
+            spinner,
+            #[strong]
+            open_file_history_menu_arc_ref,
+            #[strong]
+            db_manager_arc_ref,
+            move |_event_controller_key: &EventControllerKey,
+                  keyval: gdk::Key,
+                  _keycode: u32,
+                  state: gdk::ModifierType| {
+                if state == gdk::ModifierType::ALT_MASK && keyval == gdk::Key::Return {
+                    fullscreen(&window, &pages_bar);
+                    return Propagation::Stop;
+                }
 
-            if state == gdk::ModifierType::ALT_MASK && keyval == gdk::Key::F4 {
-                app.quit();
-            }
+                if state == gdk::ModifierType::ALT_MASK && keyval == gdk::Key::F4 {
+                    app.quit();
+                }
 
-            if state == gdk::ModifierType::CONTROL_MASK && keyval == gdk::Key::o {
-                open_file_action_with_dialog(&app, &window, &image_container_list, &drawing_area, &pages_bar, &settings, &pages_info, &spinner, &open_file_history_menu_arc_ref, &db_manager_arc_ref);
-                return Propagation::Stop;
-            }
+                if state == gdk::ModifierType::CONTROL_MASK && keyval == gdk::Key::o {
+                    open_file_action_with_dialog(
+                        &app,
+                        &window,
+                        &image_container_list,
+                        &drawing_area,
+                        &pages_bar,
+                        &settings,
+                        &pages_info,
+                        &spinner,
+                        &open_file_history_menu_arc_ref,
+                        &db_manager_arc_ref,
+                    );
+                    return Propagation::Stop;
+                }
 
-            let is_pressed_ctrl = state == gdk::ModifierType::CONTROL_MASK;
-            let mut is_move = false;
-            let mut additional_val = 0;
-            match keyval {
-                gdk::Key::q => {
-                    if is_pressed_ctrl {
-                        app.quit();
+                let is_pressed_ctrl = state == gdk::ModifierType::CONTROL_MASK;
+                let mut is_move = false;
+                let mut additional_val = 0;
+                match keyval {
+                    gdk::Key::q => {
+                        if is_pressed_ctrl {
+                            app.quit();
+                        }
                     }
-                },
-                gdk::Key::Left => {
-                    if *settings.is_dual_mode.lock().unwrap() {
-                        additional_val = get_move_page_number(true,&pages_info);
-                    } else {
-                        additional_val = 1;
-                    }
-                    is_move = true;
-                },
-                gdk::Key::h => {
-                    if *settings.is_dual_mode.lock().unwrap() {
-                        additional_val = get_move_page_number(true, &pages_info);
-                    } else {
-                        additional_val = 1;
-                    }
-                    is_move = true;
-                },
-                gdk::Key::b => {
-                    if is_pressed_ctrl {
+                    gdk::Key::Left => {
                         if *settings.is_dual_mode.lock().unwrap() {
                             additional_val = get_move_page_number(true, &pages_info);
                         } else {
@@ -1348,55 +1668,72 @@ fn init(&self, app: &Application, width: i32, height: i32) -> Result<()> {
                         }
                         is_move = true;
                     }
-                },
-                gdk::Key::Right => {
-                    if *settings.is_dual_mode.lock().unwrap() {
-                        additional_val = get_move_page_number(false, &pages_info);
-                    } else {
-                        additional_val = -1;
-                    }
-                    is_move = true;
-                },
-                gdk::Key::l => {
-                    if *settings.is_dual_mode.lock().unwrap() {
-                        additional_val = get_move_page_number(false, &pages_info);
-                    } else {
-                        additional_val = -1;
-                    }
-                    is_move = true;
-                },
-                gdk::Key::f => {
-                    if is_pressed_ctrl {
+                    gdk::Key::h => {
                         if *settings.is_dual_mode.lock().unwrap() {
                             additional_val = get_move_page_number(true, &pages_info);
+                        } else {
+                            additional_val = 1;
+                        }
+                        is_move = true;
+                    }
+                    gdk::Key::b => {
+                        if is_pressed_ctrl {
+                            if *settings.is_dual_mode.lock().unwrap() {
+                                additional_val = get_move_page_number(true, &pages_info);
+                            } else {
+                                additional_val = 1;
+                            }
+                            is_move = true;
+                        }
+                    }
+                    gdk::Key::Right => {
+                        if *settings.is_dual_mode.lock().unwrap() {
+                            additional_val = get_move_page_number(false, &pages_info);
                         } else {
                             additional_val = -1;
                         }
                         is_move = true;
                     }
-                },
-                _ => is_move = false
+                    gdk::Key::l => {
+                        if *settings.is_dual_mode.lock().unwrap() {
+                            additional_val = get_move_page_number(false, &pages_info);
+                        } else {
+                            additional_val = -1;
+                        }
+                        is_move = true;
+                    }
+                    gdk::Key::f => {
+                        if is_pressed_ctrl {
+                            if *settings.is_dual_mode.lock().unwrap() {
+                                additional_val = get_move_page_number(true, &pages_info);
+                            } else {
+                                additional_val = -1;
+                            }
+                            is_move = true;
+                        }
+                    }
+                    _ => is_move = false,
+                }
+                if is_move {
+                    move_page(
+                        additional_val,
+                        &settings,
+                        &drawing_area,
+                        &pages_bar,
+                        &image_container_list,
+                        &pages_info,
+                        &db_manager_arc_ref,
+                    );
+                }
+                Propagation::Stop
             }
-            if is_move {
-                move_page(
-                    additional_val,
-                    &settings,
-                    &drawing_area,
-                    &pages_bar,
-                    &image_container_list,
-                    &pages_info,
-                    &db_manager_arc_ref,
-                );
-            }
-            Propagation::Stop
-        }));
+        ));
         self.window.add_controller(event_controller_key);
 
         self.view_window.set_hexpand(true);
         self.view_window.set_vexpand(true);
         self.view_window.set_halign(gtk::Align::Fill);
         self.view_window.set_valign(gtk::Align::Fill);
-
 
         let drawing_area_ref = &drawing_area;
         let pages_bar_ref = &pages_bar;
@@ -1410,7 +1747,7 @@ fn init(&self, app: &Application, width: i32, height: i32) -> Result<()> {
             settings,
             spinner_ref,
             open_file_history_menu_arc_ref,
-            db_manager_arc_ref
+            db_manager_arc_ref,
         );
         app.add_action_entries(action_entry);
         self.view_window.set_child(Some(drawing_area_ref));
@@ -1419,7 +1756,6 @@ fn init(&self, app: &Application, width: i32, height: i32) -> Result<()> {
         overlay.set_child(Some(&self.view_window));
         overlay.add_overlay(spinner_ref);
         overlay.add_overlay(pages_bar_ref);
-
 
         self.v_box.set_halign(gtk::Align::Fill);
         self.v_box.set_valign(gtk::Align::Fill);

@@ -1,16 +1,15 @@
-mod types;
 mod file_history;
 mod image_container;
 mod image_loader;
-mod pdf_loader;
 mod main_window;
-mod utils;
 mod natural_sort;
+mod pdf_loader;
+mod types;
+mod utils;
 
-use gtk4 as gtk;
-use gtk::gio::prelude::{ApplicationExt, ApplicationExtManual};
 use gtk::Application;
-
+use gtk::gio::prelude::{ApplicationExt, ApplicationExtManual};
+use gtk4 as gtk;
 
 fn main() -> gtk::glib::ExitCode {
     let app_id_str: &str = "com.simple_comics_viewer";

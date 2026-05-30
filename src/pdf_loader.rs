@@ -3,14 +3,16 @@ use mupdf::{Document, Pixmap};
 use crate::utils;
 
 pub struct PdfPixmap {
-    pub pixmap: Pixmap
+    pub pixmap: Pixmap,
 }
 
 unsafe impl Send for PdfPixmap {}
 unsafe impl Sync for PdfPixmap {}
 
-pub fn load_pdf(file_path: &str, pdf_pixmaps: &std::sync::Arc<std::sync::Mutex<Vec<PdfPixmap>>>) -> Result<(), Box<dyn std::error::Error>> {
-
+pub fn load_pdf(
+    file_path: &str,
+    pdf_pixmaps: &std::sync::Arc<std::sync::Mutex<Vec<PdfPixmap>>>,
+) -> Result<(), Box<dyn std::error::Error>> {
     let document = Document::open(file_path)?;
 
     let ppi = utils::get_dpi();
@@ -28,8 +30,11 @@ pub fn load_pdf(file_path: &str, pdf_pixmaps: &std::sync::Arc<std::sync::Mutex<V
         // page.run(&device, &ctm)?;
 
         let pixmap = page.to_pixmap(&ctm, &cs, true, true)?;
-        pdf_pixmaps.lock().unwrap().push(PdfPixmap { pixmap: pixmap });
+        pdf_pixmaps
+            .lock()
+            .unwrap()
+            .push(PdfPixmap { pixmap: pixmap });
     }
-    
+
     Ok(())
 }

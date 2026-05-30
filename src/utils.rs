@@ -1,8 +1,8 @@
-use gtk4 as gtk;
 use gtk::gio;
 use gtk::prelude::Cast;
+use gtk4 as gtk;
 
-use gtk::gdk::{prelude::DisplayExt};
+use gtk::gdk::prelude::DisplayExt;
 
 use gtk::prelude::FileExt;
 use gtk::prelude::MonitorExt;
@@ -43,7 +43,9 @@ pub fn get_dpi() -> f32 {
     let monitors = display.monitors();
     for monitor in monitors.into_iter() {
         let pre_m = monitor.expect("faild get monitor from monitors iter.");
-        let m = pre_m.downcast::<gtk::gdk::Monitor>().expect("failed downcast from object to Monitor");
+        let m = pre_m
+            .downcast::<gtk::gdk::Monitor>()
+            .expect("failed downcast from object to Monitor");
         let geometry = m.geometry();
         let width_pixel = geometry.width();
         let height_pixel = geometry.height();

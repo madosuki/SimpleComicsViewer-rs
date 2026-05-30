@@ -1,4 +1,4 @@
-pub fn compare_by_natural(a: &str, b : &str) -> std::cmp::Ordering {
+pub fn compare_by_natural(a: &str, b: &str) -> std::cmp::Ordering {
     let mut a_chars = a.chars().peekable();
     let mut b_chars = b.chars().peekable();
 
@@ -15,7 +15,7 @@ pub fn compare_by_natural(a: &str, b : &str) -> std::cmp::Ordering {
                     if ord != std::cmp::Ordering::Equal {
                         return ord;
                     }
-                }  else {
+                } else {
                     let tmp_a = a_chars.next();
                     let tmp_b = b_chars.next();
 
@@ -29,14 +29,15 @@ pub fn compare_by_natural(a: &str, b : &str) -> std::cmp::Ordering {
                         }
                     }
                 }
-            },
+            }
         }
     }
-    
 }
 
 fn get_digits<T>(iter: &mut std::iter::Peekable<T>) -> String
-where T: Iterator<Item = char> {
+where
+    T: Iterator<Item = char>,
+{
     let mut tmp = String::new();
 
     while let Some(&c) = iter.peek() {
@@ -61,9 +62,7 @@ fn cmp_digits(a: &str, b: &str) -> std::cmp::Ordering {
 
     match alt_a.len().cmp(&alt_b.len()) {
         std::cmp::Ordering::Equal => match alt_a.cmp(&alt_b) {
-            std::cmp::Ordering::Equal => {
-              a.len().cmp(&b.len())
-            },
+            std::cmp::Ordering::Equal => a.len().cmp(&b.len()),
             ord => ord,
         },
         ord => ord,
