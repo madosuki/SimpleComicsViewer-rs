@@ -586,6 +586,8 @@ fn open_file_for_action(
 
             glib::spawn_future_local(glib::clone!(
                 #[weak]
+                app,
+                #[weak]
                 window,
                 #[weak]
                 image_container_list,
@@ -636,14 +638,20 @@ fn open_file_for_action(
                                             pages_bar.set_fraction(0.0);
                                             pages_bar.set_inverted(true);
 
+                                            restore_pages_info(&db_manager, &pages_info, &pathname);
+                                            sync_page_direction_action_state(&app, &pages_info);
+
+                                            let restored_page_index =
+                                                *pages_info.current_page_index.lock().unwrap();
                                             set_page(
-                                                0,
+                                                restored_page_index,
                                                 &settings,
                                                 &drawing_area_ref,
                                                 &image_container_list,
                                                 &pages_info,
                                                 &db_manager,
                                             );
+
 
                                             drawing_area_ref.queue_draw();
                                             update_open_file_history_menu(
