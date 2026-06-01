@@ -7,8 +7,7 @@ edition = "2024"
 
 [dependencies]
 gtk4 = "0.11"
-libarchive3-sys-by-madosuki = { git = "https://github.com/madosuki/libarchive3-sys-by-madosuki"}
-libarchive_extractor-rs = { git = "https://github.com/madosuki/libarchive_extractor-rs" }
+libarchive_extractor-rs = { git = "https://github.com/madosuki/libarchive_extractor-rs", rev = "a1ce0666b42435e90cd32c96bafe9cf35c4aefb8" }
 anyhow = "1.0.102"
 mupdf = { version = "0.6.0", features = ["sys-lib"]}
 rusqlite = "0.39.0"

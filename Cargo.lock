@@ -738,16 +738,17 @@ checksum = "bbd2bcb4c963f2ddae06a2efc7e9f3591312473c50c6685e1f298068316e66fe"
 [[package]]
 name = "libarchive3-sys-by-madosuki"
 version = "0.1.0"
-source = "git+https://github.com/madosuki/libarchive3-sys-by-madosuki#bb3b6313d9249e4e9ab8265a4cc83bdc39246c05"
+source = "git+https://github.com/madosuki/libarchive3-sys-by-madosuki?rev=a69555863720d62099dfc01932e3e988443f1f1d#a69555863720d62099dfc01932e3e988443f1f1d"
 dependencies = [
  "libc",
  "pkg-config",
+ "vcpkg",
 ]
 
 [[package]]
 name = "libarchive_extractor-rs"
 version = "0.1.0"
-source = "git+https://github.com/madosuki/libarchive_extractor-rs#735d441f9999a54059b77adb7c684ebe09f8d0d1"
+source = "git+https://github.com/madosuki/libarchive_extractor-rs?rev=a1ce0666b42435e90cd32c96bafe9cf35c4aefb8#a1ce0666b42435e90cd32c96bafe9cf35c4aefb8"
 dependencies = [
  "libarchive3-sys-by-madosuki",
  "libc",
@@ -1088,7 +1089,6 @@ version = "0.0.7"
 dependencies = [
  "anyhow",
  "gtk4",
- "libarchive3-sys-by-madosuki",
  "libarchive_extractor-rs",
  "mupdf",
  "rusqlite",
