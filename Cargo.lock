@@ -738,7 +738,7 @@ checksum = "bbd2bcb4c963f2ddae06a2efc7e9f3591312473c50c6685e1f298068316e66fe"
 [[package]]
 name = "libarchive3-sys-by-madosuki"
 version = "0.1.0"
-source = "git+https://github.com/madosuki/libarchive3-sys-by-madosuki?rev=a69555863720d62099dfc01932e3e988443f1f1d#a69555863720d62099dfc01932e3e988443f1f1d"
+source = "git+https://github.com/madosuki/libarchive3-sys-by-madosuki?rev=d331707055f5fc6eeaf078a3c96d4e2fefeb4785#d331707055f5fc6eeaf078a3c96d4e2fefeb4785"
 dependencies = [
  "libc",
  "pkg-config",
@@ -748,7 +748,7 @@ dependencies = [
 [[package]]
 name = "libarchive_extractor-rs"
 version = "0.1.0"
-source = "git+https://github.com/madosuki/libarchive_extractor-rs?rev=a1ce0666b42435e90cd32c96bafe9cf35c4aefb8#a1ce0666b42435e90cd32c96bafe9cf35c4aefb8"
+source = "git+https://github.com/madosuki/libarchive_extractor-rs?rev=0b814e66f877385b14ba7b23009401b25d797289#0b814e66f877385b14ba7b23009401b25d797289"
 dependencies = [
  "libarchive3-sys-by-madosuki",
  "libc",
