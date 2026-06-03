@@ -7,7 +7,7 @@ use crate::natural_sort::compare_by_natural;
 use crate::utils;
 
 pub fn load_from_compressed_file_to_memory(pathname: &str) -> Result<Vec<DecompressedData>> {
-    let archive = libarchive_extractor_rs::Archive::new()?;
+    let archive = libarchive_extractor_rs::Archive::new();
 
     let mut tmp: Vec<DecompressedData> = archive
         .extract_to_memory(pathname)?

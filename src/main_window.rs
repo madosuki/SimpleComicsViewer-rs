@@ -525,7 +525,8 @@ fn open_file_for_action(
                                             pages_bar.set_fraction(0.0);
                                             pages_bar.set_inverted(true);
 
-                                            restore_pages_info(&db_manager, &pages_info, &pathname);
+                                            let max_size = image_container_list.lock().unwrap().len();
+                                            restore_pages_info(&db_manager, &pages_info, &pathname, max_size);
                                             sync_page_direction_action_state(&app, &pages_info);
 
                                             let restored_page_index =
@@ -638,7 +639,8 @@ fn open_file_for_action(
                                             pages_bar.set_fraction(0.0);
                                             pages_bar.set_inverted(true);
 
-                                            restore_pages_info(&db_manager, &pages_info, &pathname);
+                                            let max_size = image_container_list.lock().unwrap().len();
+                                            restore_pages_info(&db_manager, &pages_info, &pathname, max_size);
                                             sync_page_direction_action_state(&app, &pages_info);
 
                                             let restored_page_index =
@@ -762,8 +764,10 @@ fn open_file_for_action(
 
                                             pages_bar.set_fraction(0.0);
                                             pages_bar.set_inverted(true);
+                                            
+                                            let max_size = image_container_list.lock().unwrap().len();
+                                            restore_pages_info(&db_manager, &pages_info, &pathname, max_size);
 
-                                            restore_pages_info(&db_manager, &pages_info, &pathname);
                                             sync_page_direction_action_state(&app, &pages_info);
 
                                             let restored_page_index =
@@ -1342,12 +1346,17 @@ fn restore_pages_info(
     db_manager: &Arc<Mutex<file_history::DbManager>>,
     pages_info: &Arc<PagesInfo>,
     file_path: &str,
+    max_size: usize,
 ) {
     let db = db_manager.lock().unwrap();
     let pages_from_db = db.get_pages_info(file_path);
     if pages_from_db.is_some() {
         let (last_page_index, page_direction) = pages_from_db.unwrap();
-        *pages_info.current_page_index.lock().unwrap() = last_page_index as usize;
+        *pages_info.current_page_index.lock().unwrap() = if max_size > last_page_index as usize {
+            last_page_index as usize
+        } else {
+            0
+        };
         *pages_info.page_direction.lock().unwrap() = page_direction;
     } else {
         *pages_info.current_page_index.lock().unwrap() = 0usize;

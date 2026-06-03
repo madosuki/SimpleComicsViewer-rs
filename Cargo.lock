@@ -748,7 +748,7 @@ dependencies = [
 [[package]]
 name = "libarchive_extractor-rs"
 version = "0.1.0"
-source = "git+https://github.com/madosuki/libarchive_extractor-rs?rev=0b814e66f877385b14ba7b23009401b25d797289#0b814e66f877385b14ba7b23009401b25d797289"
+source = "git+https://github.com/madosuki/libarchive_extractor-rs?rev=2c169e9c182fb7c8f2fb64689a4ed4a61d9e1854#2c169e9c182fb7c8f2fb64689a4ed4a61d9e1854"
 dependencies = [
  "libarchive3-sys-by-madosuki",
  "libc",
