@@ -1771,6 +1771,8 @@ impl MainWindow {
             db_manager_arc_ref,
         );
         app.add_action_entries(action_entry);
+        app.set_accels_for_action("app.quit", &["<Control>Q", "<Alt>F4"]);
+        app.set_accels_for_action("app.file_open", &["<Control>O"]);
         self.view_window.set_child(Some(drawing_area_ref));
 
         let overlay = gtk::Overlay::new();
