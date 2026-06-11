@@ -1746,7 +1746,7 @@ impl MainWindow {
                         &db_manager_arc_ref,
                     );
                 }
-                Propagation::Stop
+                Propagation::Proceed
             }
         ));
         self.window.add_controller(event_controller_key);
